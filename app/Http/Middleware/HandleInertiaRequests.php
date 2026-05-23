@@ -31,6 +31,9 @@ class HandleInertiaRequests extends Middleware
             'logoUrl' => Storage::disk('public')->exists('logo/current.png')
                 ? Storage::disk('public')->url('logo/current.png')
                 : null,
+            'logoText' => Storage::disk('local')->exists('logo/text.txt')
+                ? trim(Storage::disk('local')->get('logo/text.txt'))
+                : null,
         ];
     }
 }

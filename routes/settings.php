@@ -49,6 +49,12 @@ Route::middleware(['auth'])->group(function () {
     Route::post('settings/logo', [LogoController::class, 'update'])
         ->name('settings.logo.update')
         ->middleware('role:admin');
+    Route::post('settings/logo/text', [LogoController::class, 'updateText'])
+        ->name('settings.logo.text')
+        ->middleware('role:admin');
+    Route::delete('settings/logo/text', [LogoController::class, 'resetText'])
+        ->name('settings.logo.text.reset')
+        ->middleware('role:admin');
     Route::delete('settings/logo', [LogoController::class, 'destroy'])
         ->name('settings.logo.destroy')
         ->middleware('role:admin');
