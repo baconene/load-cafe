@@ -1,4 +1,4 @@
-# Bypass Grill - Food & Beverage Ordering System
+# Load Cafe - Food & Beverage Ordering System
 ## Complete Implementation Summary
 
 Generated: May 12, 2025
@@ -247,7 +247,7 @@ GET    /api/v1/reports/inventory-val.  - Inventory valuation
 - ❌ Manage inventory
 - ❌ View reports
 
-**Demo User:** maria@bypassgrill.local / password
+**Demo User:** maria@loadcafe.local / password
 
 ### Role: Kitchen
 **Permissions:**
@@ -257,7 +257,7 @@ GET    /api/v1/reports/inventory-val.  - Inventory valuation
 - ❌ Create orders
 - ❌ Process payments
 
-**Demo User:** rosa@bypassgrill.local / password
+**Demo User:** rosa@loadcafe.local / password
 
 ### Role: Auditor
 **Permissions:**
@@ -269,13 +269,13 @@ GET    /api/v1/reports/inventory-val.  - Inventory valuation
 - ❌ Create orders
 - ❌ Process payments
 
-**Demo User:** anna@bypassgrill.local / password
+**Demo User:** anna@loadcafe.local / password
 
 ### Role: Admin
 **Permissions:**
 - ✅ All permissions
 
-**Demo User:** admin@bypassgrill.local / password
+**Demo User:** admin@loadcafe.local / password
 
 ---
 
@@ -449,12 +449,12 @@ Documentation/
 
 ### Test Credentials
 ```
-Admin:   admin@bypassgrill.local / password
-Cashier: maria@bypassgrill.local / password
-Cashier: john@bypassgrill.local / password
-Kitchen: rosa@bypassgrill.local / password
-Kitchen: pedro@bypassgrill.local / password
-Auditor: anna@bypassgrill.local / password
+Admin:   admin@loadcafe.local / password
+Cashier: maria@loadcafe.local / password
+Cashier: john@loadcafe.local / password
+Kitchen: rosa@loadcafe.local / password
+Kitchen: pedro@loadcafe.local / password
+Auditor: anna@loadcafe.local / password
 ```
 
 ---
@@ -489,11 +489,11 @@ cp .env.example .env
 php artisan key:generate
 
 # 3. Configure database in .env
-# DB_DATABASE=bypassgrill
+# DB_DATABASE=loadcafe
 # DB_USERNAME=root
 
 # 4. Create database & run migrations
-mysql -u root -e "CREATE DATABASE bypassgrill;"
+mysql -u root -e "CREATE DATABASE loadcafe;"
 php artisan migrate
 php artisan db:seed
 

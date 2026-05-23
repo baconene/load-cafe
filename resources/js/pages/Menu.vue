@@ -32,7 +32,7 @@ const menuItems = [
 </script>
 
 <template>
-    <Head title="Bypass Grill - Fresh Off The Grill Menu" />
+    <Head title="Load Cafe - Fresh Menu" />
 
     <div class="min-h-screen bg-black text-white">
         <!-- Grill fire background effect -->
@@ -48,8 +48,8 @@ const menuItems = [
                         <div class="flex items-center gap-4">
                             <div class="flex h-16 w-16 items-center justify-center rounded-full border-2 border-orange-500 text-center">
                                 <div class="text-xs font-bold text-orange-500 leading-tight">
-                                    <div>BYPASS</div>
-                                    <div class="text-[10px]">GRILL</div>
+                                    <div>LOAD</div>
+                                    <div class="text-[10px]">CAFE</div>
                                 </div>
                             </div>
                         </div>

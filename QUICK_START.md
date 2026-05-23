@@ -10,7 +10,7 @@ npm install
 
 ### 2. Create Database
 ```bash
-mysql -u root -p -e "CREATE DATABASE bypassgrill CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -u root -p -e "CREATE DATABASE loadcafe CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 ```
 
 ### 3. Configure Environment
@@ -21,7 +21,7 @@ php artisan key:generate
 
 Edit `.env` and set:
 ```env
-DB_DATABASE=bypassgrill
+DB_DATABASE=loadcafe
 DB_USERNAME=root
 DB_PASSWORD=yourpassword
 ```
@@ -45,19 +45,19 @@ Visit: `http://localhost:8000`
 After seeding, login with any of these:
 
 **Admin**
-- Email: `admin@bypassgrill.local`
+- Email: `admin@loadcafe.local`
 - Password: `password`
 
 **Cashier**
-- Email: `maria@bypassgrill.local`
+- Email: `maria@loadcafe.local`
 - Password: `password`
 
 **Kitchen**
-- Email: `rosa@bypassgrill.local`
+- Email: `rosa@loadcafe.local`
 - Password: `password`
 
 **Auditor**
-- Email: `anna@bypassgrill.local`
+- Email: `anna@loadcafe.local`
 - Password: `password`
 
 ## Development Workflow
@@ -124,6 +124,6 @@ chmod -R 755 storage bootstrap/cache
 
 - Dashboard: `http://localhost:8000`
 - API Docs: See SYSTEM_DOCUMENTATION.md
-- Database: `mysql bypassgrill -u root -p`
+- Database: `mysql loadcafe -u root -p`
 - Queue Monitoring: `http://localhost:8000/jobs`
 - Logs: `storage/logs/laravel.log`

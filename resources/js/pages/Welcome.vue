@@ -6,7 +6,7 @@ withDefaults(defineProps<{ canRegister?: boolean }>(), { canRegister: false })
 </script>
 
 <template>
-    <Head title="Bypass Grill — Monster Ribs on Every Bypass Road" />
+    <Head title="Load Cafe — Your Favorite Cafe Stop" />
 
     <div class="min-h-screen bg-[#0a0602] text-white font-sans overflow-x-hidden">
 
@@ -14,9 +14,9 @@ withDefaults(defineProps<{ canRegister?: boolean }>(), { canRegister: false })
         <nav class="fixed top-0 inset-x-0 z-50 flex items-center justify-between px-6 py-4 bg-black/60 backdrop-blur-sm border-b border-orange-900/40">
             <div class="flex items-center gap-3">
                 <div class="h-9 w-9 rounded-full border-2 border-orange-500 flex items-center justify-center">
-                    <span class="text-[9px] font-black text-orange-400 leading-tight text-center">BY<br>PASS</span>
+                    <span class="text-[9px] font-black text-orange-400 leading-tight text-center">LO<br>AD</span>
                 </div>
-                <span class="text-lg font-black tracking-widest text-white">BYPASS <span class="text-orange-500">GRILL</span></span>
+                <span class="text-lg font-black tracking-widest text-white">LOAD <span class="text-orange-500">CAFE</span></span>
             </div>
             <div class="flex items-center gap-3">
                 <Link v-if="$page.props.auth?.user" :href="dashboard()"
@@ -44,7 +44,7 @@ withDefaults(defineProps<{ canRegister?: boolean }>(), { canRegister: false })
                 <!-- badge -->
                 <div class="inline-flex items-center gap-2 rounded-full border border-orange-700 bg-orange-950/60 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-orange-400 mb-8">
                     <span class="h-1.5 w-1.5 rounded-full bg-orange-500 animate-pulse"></span>
-                    Now Open · Pop-Up Stores on Bypass Roads
+                    Now Open · Your Favorite Cafe Stop
                 </div>
 
                 <!-- headline -->
@@ -58,7 +58,7 @@ withDefaults(defineProps<{ canRegister?: boolean }>(), { canRegister: false })
 
                 <p class="max-w-xl mx-auto text-lg text-gray-300 leading-relaxed mb-10">
                     Slow-cooked pork ribs, smoky BBQ glaze, fall-off-the-bone tender.<br>
-                    <span class="text-orange-400 font-semibold">Find us along the bypass road near you.</span>
+                    <span class="text-orange-400 font-semibold">Find us near you.</span>
                 </p>
 
                 <!-- price badge -->
@@ -164,17 +164,17 @@ withDefaults(defineProps<{ canRegister?: boolean }>(), { canRegister: false })
                     <span class="text-orange-400">Road Meets The Grill</span>
                 </h2>
                 <p class="max-w-2xl mx-auto text-gray-300 leading-relaxed text-lg">
-                    Bypass Grill is a <strong class="text-white">pop-up grill store</strong> strategically located along
-                    <strong class="text-white">bypass roads</strong>—the routes commuters and travelers use every day.
-                    No fancy dining room. Just <strong class="text-orange-400">real fire, real flavor</strong>, served fast.
+                    Load Cafe is a <strong class="text-white">cafe</strong> strategically located
+                    where you need it most—accessible, welcoming, and always fresh.
+                    No frills. Just <strong class="text-orange-400">great food, great drinks</strong>, served fast.
                 </p>
             </div>
 
             <div class="max-w-5xl mx-auto grid sm:grid-cols-3 gap-6">
                 <div v-for="card in [
-                    { icon: '📍', title: 'Bypass Road Locations', body: 'Every store is set up along a bypass road — easy to spot, easy to stop at, impossible to miss.' },
-                    { icon: '🔥', title: 'Live Fire Grilling', body: 'We grill fresh in front of you. No reheated food. Every plate leaves the grill hot and smoky.' },
-                    { icon: '⚡', title: 'Fast & Affordable', body: 'Combo meals starting at ₱99. Grab-and-go friendly. Perfect for commuters and families on the move.' },
+                    { icon: '📍', title: 'Convenient Locations', body: 'Every Load Cafe is set up where you need it — easy to spot, easy to stop at, impossible to miss.' },
+                    { icon: '☕', title: 'Fresh Every Day', body: 'We prepare fresh in front of you. No reheated food. Every order leaves the kitchen hot and ready.' },
+                    { icon: '⚡', title: 'Fast & Affordable', body: 'Combo meals starting at ₱99. Grab-and-go friendly. Perfect for everyone on the move.' },
                 ]" :key="card.title"
                     class="rounded-2xl border border-white/5 p-6 text-center hover:border-orange-700/50 transition-colors"
                     style="background: rgba(255,255,255,0.025)">
@@ -193,7 +193,7 @@ withDefaults(defineProps<{ canRegister?: boolean }>(), { canRegister: false })
                 <p class="text-3xl sm:text-4xl font-black leading-tight text-white mb-4">
                     "Kain agad—<span class="text-orange-400">mas solid habang mainit!</span>"
                 </p>
-                <p class="text-gray-400 text-sm uppercase tracking-widest">Bypass Grill · Fresh Off The Grill Daily</p>
+                <p class="text-gray-400 text-sm uppercase tracking-widest">Load Cafe · Fresh Brews Daily</p>
             </div>
         </section>
 
@@ -201,11 +201,11 @@ withDefaults(defineProps<{ canRegister?: boolean }>(), { canRegister: false })
         <footer class="border-t border-orange-900/30 px-6 py-8 text-center">
             <div class="flex items-center justify-center gap-3 mb-3">
                 <div class="h-8 w-8 rounded-full border-2 border-orange-600 flex items-center justify-center">
-                    <span class="text-[8px] font-black text-orange-500 leading-tight text-center">BY<br>PASS</span>
+                    <span class="text-[8px] font-black text-orange-500 leading-tight text-center">LO<br>AD</span>
                 </div>
-                <span class="font-black tracking-widest text-white">BYPASS <span class="text-orange-500">GRILL</span></span>
+                <span class="font-black tracking-widest text-white">LOAD <span class="text-orange-500">CAFE</span></span>
             </div>
-            <p class="text-xs text-gray-600">Pop-up grill stores along bypass roads near you.</p>
+            <p class="text-xs text-gray-600">Your favorite cafe, near you.</p>
         </footer>
 
     </div>

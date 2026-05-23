@@ -21,7 +21,7 @@ http://localhost:8000/api/v1
 curl -X POST http://localhost:8000/api/v1/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "maria@bypassgrill.local",
+    "email": "maria@loadcafe.local",
     "password": "password"
   }'
 ```
@@ -33,7 +33,7 @@ Response:
   "user": {
     "id": 2,
     "name": "Maria Santos",
-    "email": "maria@bypassgrill.local",
+    "email": "maria@loadcafe.local",
     "roles": ["cashier"]
   }
 }
@@ -289,7 +289,7 @@ curl -X GET http://localhost:8000/api/v1/reports/inventory-valuation \
 TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "maria@bypassgrill.local",
+    "email": "maria@loadcafe.local",
     "password": "password"
   }' | jq -r '.token')
 ```
@@ -337,7 +337,7 @@ curl -s -X POST http://localhost:8000/api/v1/payments \
 TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "rosa@bypassgrill.local",
+    "email": "rosa@loadcafe.local",
     "password": "password"
   }' | jq -r '.token')
 ```
@@ -371,7 +371,7 @@ curl -s -X PATCH http://localhost:8000/api/v1/orders/101/status \
 TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "anna@bypassgrill.local",
+    "email": "anna@loadcafe.local",
     "password": "password"
   }' | jq -r '.token')
 ```

@@ -1,4 +1,4 @@
-# Bypass Grill - Food & Beverage Ordering System
+# Load Cafe - Food & Beverage Ordering System
 
 A modern, production-ready Food & Beverage Ordering System built with Laravel 13, Vue 3, and modern technologies for restaurant/café operations.
 
@@ -79,7 +79,7 @@ A modern, production-ready Food & Beverage Ordering System built with Laravel 13
 ### Step 1: Clone Repository
 ```bash
 git clone <repository-url>
-cd bypassgrill
+cd loadcafe
 ```
 
 ### Step 2: Install PHP Dependencies
@@ -99,7 +99,7 @@ Edit `.env` file:
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=bypassgrill
+DB_DATABASE=loadcafe
 DB_USERNAME=root
 DB_PASSWORD=
 ```
@@ -160,7 +160,7 @@ MAIL_PORT=465
 MAIL_USERNAME=your_username
 MAIL_PASSWORD=your_password
 MAIL_ENCRYPTION=tls
-MAIL_FROM_ADDRESS=noreply@bypassgrill.local
+MAIL_FROM_ADDRESS=noreply@loadcafe.local
 ```
 
 ### Queue Configuration
@@ -363,12 +363,12 @@ GET /reports/inventory-valuation
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | admin@bypassgrill.local | password |
-| Cashier 1 | maria@bypassgrill.local | password |
-| Cashier 2 | john@bypassgrill.local | password |
-| Kitchen 1 | rosa@bypassgrill.local | password |
-| Kitchen 2 | pedro@bypassgrill.local | password |
-| Auditor | anna@bypassgrill.local | password |
+| Admin | admin@loadcafe.local | password |
+| Cashier 1 | maria@loadcafe.local | password |
+| Cashier 2 | john@loadcafe.local | password |
+| Kitchen 1 | rosa@loadcafe.local | password |
+| Kitchen 2 | pedro@loadcafe.local | password |
+| Auditor | anna@loadcafe.local | password |
 
 ### Permissions Matrix
 
@@ -467,17 +467,17 @@ FROM php:8.3-fpm
 
 ### Systemd Service (Queue Worker)
 
-Create `/etc/systemd/system/bypassgrill-queue.service`:
+Create `/etc/systemd/system/loadcafe-queue.service`:
 
 ```ini
 [Unit]
-Description=Bypass Grill Queue Worker
+Description=Load Cafe Queue Worker
 After=network.target
 
 [Service]
 Type=simple
 User=www-data
-WorkingDirectory=/var/www/bypassgrill
+WorkingDirectory=/var/www/loadcafe
 ExecStart=/usr/bin/php artisan queue:work redis --tries=3
 Restart=on-failure
 
@@ -487,8 +487,8 @@ WantedBy=multi-user.target
 
 Then:
 ```bash
-sudo systemctl enable bypassgrill-queue
-sudo systemctl start bypassgrill-queue
+sudo systemctl enable loadcafe-queue
+sudo systemctl start loadcafe-queue
 ```
 
 ## Running the Application
@@ -550,7 +550,7 @@ php artisan route:clear
 ```bash
 php artisan tinker
 # or
-mysql -u root bypassgrill
+mysql -u root loadcafe
 ```
 
 ## Troubleshooting
