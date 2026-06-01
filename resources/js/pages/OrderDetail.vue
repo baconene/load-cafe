@@ -103,7 +103,7 @@ const reprintReceipt = async () => {
 <template>
     <Head :title="`Order #${order.id}`" />
 
-    <div class="max-w-3xl mx-auto space-y-5">
+    <div class="max-w-3xl mx-auto space-y-5 pt-6">
 
         <!-- Back + Header -->
         <div class="flex items-center gap-3">
