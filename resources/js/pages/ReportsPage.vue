@@ -44,7 +44,7 @@ interface FtTransaction {
 interface OrderRow {
     id: number; queue_number: number | null; order_type: string; status: string
     payment_status: string; table_number: string | null; notes: string | null
-    total_amount: number; items: { data: any[] } | any[]; user?: { data?: any; name?: string }
+    total_amount: number; items_count: number
     created_at: string
 }
 interface InvTransaction {
@@ -197,9 +197,6 @@ const payingInstallmentId = ref<number | null>(null)
 const fmt = (v: number | string | null | undefined) =>
     '₱' + parseFloat(String(v ?? 0)).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 
-const itemCount = (items: any) =>
-    Array.isArray(items) ? items.length : (items?.data?.length ?? 0)
-
 const fmtDatetime = (s: string) => {
     if (!s) return '—'
     const d = new Date(s)
@@ -280,7 +277,7 @@ const topProducts = computed(() =>
 // ── Data loading ──────────────────────────────────────────────────────────────
 const loadOrders = async (page = 1) => {
     ordPage.value = page
-    const res = await api.get('/api/v1/orders', {
+    const res = await api.get('/api/v1/reports/orders', {
         params: {
             page,
             search: ordSearch.value || undefined,
@@ -290,10 +287,7 @@ const loadOrders = async (page = 1) => {
             payment_status: ordPayment.value || undefined,
         },
     })
-    ordersData.value = (res.data.data ?? []).map((o: any) => ({
-        ...o,
-        total_amount: parseFloat(o.total_amount ?? 0),
-    }))
+    ordersData.value = res.data.data ?? []
     ordersMeta.value = res.data.meta ?? null
 }
 
@@ -602,7 +596,7 @@ const exportCSV = () => {
             ...ordersData.value.map((o) => [
                 String(o.id), String(o.queue_number ?? ''), o.created_at?.slice(0, 16) ?? '',
                 o.order_type, o.table_number ?? '', o.status, o.payment_status,
-                String(itemCount(o.items)), String(o.total_amount),
+                String(o.items_count ?? 0), String(o.total_amount),
             ]),
         ]
     } else if (tab.value === 'inventory' && invTransactions.value.length > 0) {
@@ -864,7 +858,7 @@ watch(tab, async (t) => {
                                 <td class="px-4 py-3 whitespace-nowrap text-muted-foreground text-xs hidden sm:table-cell">{{ fmtDatetime(order.created_at) }}</td>
                                 <td class="px-4 py-3 hidden sm:table-cell"><span class="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">{{ orderTypeBadge(order.order_type) }}</span></td>
                                 <td class="px-4 py-3 text-muted-foreground hidden md:table-cell">{{ order.table_number ?? '—' }}</td>
-                                <td class="px-4 py-3 text-center font-medium hidden md:table-cell">{{ itemCount(order.items) }}</td>
+                                <td class="px-4 py-3 text-center font-medium hidden md:table-cell">{{ order.items_count }}</td>
                                 <td class="px-4 py-3"><span :class="['rounded-full px-2 py-0.5 text-xs font-semibold capitalize', statusBadge(order.status)]">{{ order.status }}</span></td>
                                 <td class="px-4 py-3 hidden sm:table-cell"><span :class="['rounded-full px-2 py-0.5 text-xs font-semibold capitalize', payBadge(order.payment_status)]">{{ order.payment_status }}</span></td>
                                 <td class="px-4 py-3 text-right font-bold">{{ fmt(order.total_amount) }}</td>

@@ -50,7 +50,8 @@ class ReportService
         $endDate ??= Carbon::now()->endOfMonth();
 
         return \App\Models\OrderItem::join('products', 'order_items.product_id', '=', 'products.id')
-            ->whereBetween('order_items.created_at', [$startDate, $endDate])
+            ->whereDate('order_items.created_at', '>=', $startDate->toDateString())
+            ->whereDate('order_items.created_at', '<=', $endDate->toDateString())
             ->selectRaw('order_items.product_id, products.name as product_name, SUM(order_items.quantity) as total_quantity, SUM(order_items.subtotal) as total_sales')
             ->groupBy('order_items.product_id', 'products.name')
             ->orderByDesc('total_sales')

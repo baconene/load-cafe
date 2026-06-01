@@ -93,6 +93,49 @@ class ReportController extends Controller
         return response()->json($query->paginate(50));
     }
 
+    public function reportOrders(): JsonResponse
+    {
+        $this->checkPermission();
+
+        $paginated = \App\Models\Order::with('queueNumber:id,number')
+            ->withCount('items')
+            ->when(request('status'),         fn($q) => $q->where('status', request('status')))
+            ->when(request('payment_status'), fn($q) => $q->where('payment_status', request('payment_status')))
+            ->when(request('date_from'),      fn($q) => $q->whereDate('created_at', '>=', request('date_from')))
+            ->when(request('date_to'),        fn($q) => $q->whereDate('created_at', '<=', request('date_to')))
+            ->when(request('search'),         fn($q) => $q->where(function ($q) {
+                $s = request('search');
+                $q->where('id', $s)
+                  ->orWhere('notes', 'like', "%{$s}%")
+                  ->orWhere('table_number', 'like', "%{$s}%");
+            }))
+            ->orderByDesc('created_at')
+            ->paginate(25);
+
+        return response()->json([
+            'data' => $paginated->getCollection()->map(fn($o) => [
+                'id'             => $o->id,
+                'queue_number'   => $o->queueNumber?->number,
+                'order_type'     => $o->order_type,
+                'status'         => $o->status,
+                'payment_status' => $o->payment_status,
+                'table_number'   => $o->table_number,
+                'notes'          => $o->notes,
+                'total_amount'   => (float) $o->total_amount,
+                'items_count'    => $o->items_count,
+                'created_at'     => $o->created_at,
+            ]),
+            'meta' => [
+                'current_page' => $paginated->currentPage(),
+                'last_page'    => $paginated->lastPage(),
+                'per_page'     => $paginated->perPage(),
+                'total'        => $paginated->total(),
+                'from'         => $paginated->firstItem(),
+                'to'           => $paginated->lastItem(),
+            ],
+        ]);
+    }
+
     public function dailySalesChart(): JsonResponse
     {
         $this->checkPermission();
