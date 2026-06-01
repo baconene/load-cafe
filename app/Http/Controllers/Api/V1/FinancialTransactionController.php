@@ -59,7 +59,11 @@ class FinancialTransactionController extends Controller {
 
         $paginated = $q->paginate(50);
         $paginated->getCollection()->transform(function ($tx) use ($balMap) {
-            $tx->financial_balance = $balMap[$tx->id] ?? null;
+            // Override stored running_balance with the period-specific one so the
+            // frontend's running_balance field reflects the filtered date range.
+            if (isset($balMap[$tx->id])) {
+                $tx->running_balance = $balMap[$tx->id];
+            }
             return $tx;
         });
 

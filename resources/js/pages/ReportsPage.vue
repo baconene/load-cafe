@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { Chart, registerables } from 'chart.js'
 Chart.register(...registerables)
-import { Head } from '@inertiajs/vue3'
+import { Head, router } from '@inertiajs/vue3'
 import { toast } from 'vue-sonner'
 import api from '@/utils/api'
 import {
@@ -850,9 +850,13 @@ watch(tab, async (t) => {
                             </tr>
                         </thead>
                         <tbody class="divide-y">
-                            <tr v-for="order in ordersData" :key="order.id" class="hover:bg-muted/20">
+                            <tr
+                                v-for="order in ordersData" :key="order.id"
+                                class="hover:bg-primary/5 cursor-pointer transition-colors"
+                                @click="router.visit('/orders/' + order.id)"
+                            >
                                 <td class="px-4 py-3">
-                                    <p class="font-bold">#{{ order.id }}</p>
+                                    <p class="font-bold text-primary">#{{ order.id }}</p>
                                     <p v-if="order.queue_number" class="text-xs text-muted-foreground">Q{{ order.queue_number }}</p>
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-muted-foreground text-xs hidden sm:table-cell">{{ fmtDatetime(order.created_at) }}</td>
