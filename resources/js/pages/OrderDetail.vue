@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Head, router } from '@inertiajs/vue3'
+import { Head } from '@inertiajs/vue3'
 import { ArrowLeft, ShoppingBag, User, MapPin, Clock, CreditCard, Package, Receipt, Printer } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import { printReceipt } from '@/utils/printReceipt'
@@ -32,6 +32,8 @@ interface Order {
 }
 
 const props = defineProps<{ order: Order }>()
+
+const goBack = () => window.history.back()
 
 const printing = ref(false)
 
@@ -107,7 +109,7 @@ const reprintReceipt = async () => {
 
         <!-- Back + Header -->
         <div class="flex items-center gap-3">
-            <button @click="router.history.back()"
+            <button @click="goBack"
                 class="rounded-lg border p-2 hover:bg-muted text-muted-foreground shrink-0">
                 <ArrowLeft class="h-4 w-4" />
             </button>
