@@ -15,6 +15,7 @@ use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
@@ -32,8 +33,8 @@ class OrderController extends Controller
             ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->when($request->payment_status, fn($q) => $q->where('payment_status', $request->payment_status))
             ->when($request->exclude_cancelled, fn($q) => $q->where('status', '!=', 'cancelled'))
-            ->when($request->date_from, fn($q) => $q->whereDate('created_at', '>=', $request->date_from))
-            ->when($request->date_to, fn($q) => $q->whereDate('created_at', '<=', $request->date_to))
+            ->when($request->date_from, fn($q) => $q->where('created_at', '>=', Carbon::parse($request->date_from)->startOfDay()))
+            ->when($request->date_to,   fn($q) => $q->where('created_at', '<=', Carbon::parse($request->date_to)->endOfDay()))
             ->when($request->search, fn($q) => $q->where(function ($q) use ($request) {
                 $q->where('id', $request->search)
                   ->orWhere('notes', 'like', "%{$request->search}%")

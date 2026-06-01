@@ -20,9 +20,10 @@ class FinancialTransactionController extends Controller {
         // This anchors the running balance correctly even when a date range is applied.
         $openingBalance = 0.0;
         if ($request->start_date) {
+            $startOfDay = Carbon::parse($request->start_date)->startOfDay();
             $openingBalance = (float) (FinancialTransaction::where('type', '!=', 'order')
                 ->when(! $includeCogs, $noCogs)
-                ->whereDate('transacted_at', '<', $request->start_date)
+                ->where('transacted_at', '<', $startOfDay)
                 ->selectRaw("SUM(CASE WHEN type IN ('payment','income_adjustment') THEN amount ELSE -amount END) as bal")
                 ->value('bal') ?? 0);
         }
@@ -31,8 +32,8 @@ class FinancialTransactionController extends Controller {
         // the balance reflects the full financial picture regardless of which type the user is filtering).
         $periodTx = FinancialTransaction::where('type', '!=', 'order')
             ->when(! $includeCogs, $noCogs)
-            ->when($request->start_date, fn ($q) => $q->whereDate('transacted_at', '>=', $request->start_date))
-            ->when($request->end_date,   fn ($q) => $q->whereDate('transacted_at', '<=', $request->end_date))
+            ->when($request->start_date, fn ($q) => $q->where('transacted_at', '>=', Carbon::parse($request->start_date)->startOfDay()))
+            ->when($request->end_date,   fn ($q) => $q->where('transacted_at', '<=', Carbon::parse($request->end_date)->endOfDay()))
             ->orderBy('transacted_at')->orderBy('id')
             ->select(['id', 'type', 'amount'])
             ->get();
@@ -53,8 +54,8 @@ class FinancialTransactionController extends Controller {
             ->orderByDesc('id');
 
         if ($request->type)       $q->where('type', $request->type);
-        if ($request->start_date) $q->whereDate('transacted_at', '>=', $request->start_date);
-        if ($request->end_date)   $q->whereDate('transacted_at', '<=', $request->end_date);
+        if ($request->start_date) $q->where('transacted_at', '>=', Carbon::parse($request->start_date)->startOfDay());
+        if ($request->end_date)   $q->where('transacted_at', '<=', Carbon::parse($request->end_date)->endOfDay());
 
         $paginated = $q->paginate(50);
         $paginated->getCollection()->transform(function ($tx) use ($balMap) {

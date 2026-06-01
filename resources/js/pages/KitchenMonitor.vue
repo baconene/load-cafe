@@ -393,7 +393,7 @@ const saveEdit = async () => {
                                         class="w-full rounded-lg border bg-background pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                                 </div>
                             </div>
-                            <div class="flex-1 overflow-y-auto p-3 space-y-1.5">
+                            <div class="max-h-48 md:max-h-none md:flex-1 overflow-y-auto p-3 space-y-1.5">
                                 <button v-for="p in filteredAddProducts" :key="p.id"
                                     @click="addProduct(p)"
                                     class="w-full flex items-center justify-between rounded-lg border bg-card px-3 py-2.5 text-left hover:border-primary hover:bg-primary/5 transition group">

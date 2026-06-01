@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\ReportService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 
 class ReportController extends Controller
 {
@@ -77,10 +78,10 @@ class ReportController extends Controller
             ->orderByDesc('created_at');
 
         if (request()->input('date_from')) {
-            $query->whereDate('created_at', '>=', request()->input('date_from'));
+            $query->where('created_at', '>=', Carbon::parse(request()->input('date_from'))->startOfDay());
         }
         if (request()->input('date_to')) {
-            $query->whereDate('created_at', '<=', request()->input('date_to'));
+            $query->where('created_at', '<=', Carbon::parse(request()->input('date_to'))->endOfDay());
         }
         if (request()->input('type')) {
             $query->where('type', request()->input('type'));
@@ -90,6 +91,49 @@ class ReportController extends Controller
         }
 
         return response()->json($query->paginate(50));
+    }
+
+    public function dailySalesChart(): JsonResponse
+    {
+        $this->checkPermission();
+
+        $period = request()->input('period', '7');
+        $now    = Carbon::now();
+
+        $start = match ($period) {
+            'ytd'   => $now->copy()->startOfYear()->startOfDay(),
+            '90'    => $now->copy()->subDays(89)->startOfDay(),
+            '30'    => $now->copy()->subDays(29)->startOfDay(),
+            default => $now->copy()->subDays(6)->startOfDay(),
+        };
+        $end = $now->copy()->endOfDay();
+
+        $rows = \App\Models\Order::select(
+                DB::raw('DATE(created_at) as date'),
+                DB::raw('COUNT(*) as order_count'),
+                DB::raw('COALESCE(SUM(total_amount), 0) as total_sales')
+            )
+            ->where('payment_status', 'paid')
+            ->whereBetween('created_at', [$start, $end])
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get()
+            ->keyBy('date');
+
+        $result = [];
+        $cursor = $start->copy()->startOfDay();
+        while ($cursor->lte($end)) {
+            $d      = $cursor->toDateString();
+            $row    = $rows->get($d);
+            $result[] = [
+                'date'   => $d,
+                'total'  => $row ? round((float) $row->total_sales, 2) : 0.0,
+                'orders' => $row ? (int) $row->order_count : 0,
+            ];
+            $cursor->addDay();
+        }
+
+        return response()->json($result);
     }
 
     private function checkPermission(): void

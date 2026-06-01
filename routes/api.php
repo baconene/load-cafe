@@ -60,6 +60,7 @@ Route::prefix('v1')->group(function () {
 
         // Reports
         Route::get('/reports/daily-sales', [ReportController::class, 'dailySales']);
+        Route::get('/reports/daily-sales-chart', [ReportController::class, 'dailySalesChart']);
         Route::get('/reports/monthly-sales', [ReportController::class, 'monthlySales']);
         Route::get('/reports/product-sales', [ReportController::class, 'productSales']);
         Route::get('/reports/inventory-valuation', [ReportController::class, 'inventoryValuation']);

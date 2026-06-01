@@ -180,29 +180,29 @@ const greeting = computed(() => {
                 <h2 class="font-semibold text-base">P&amp;L — This Month</h2>
                 <Link href="/reports" class="text-xs text-muted-foreground hover:text-primary">View full report →</Link>
             </div>
-            <div class="grid grid-cols-2 gap-0 sm:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x">
-                <div class="p-4">
+            <div class="grid grid-cols-2 gap-0 sm:grid-cols-3 lg:grid-cols-5 divide-y lg:divide-y-0 lg:divide-x">
+                <div class="p-3 sm:p-4">
                     <p class="text-xs text-muted-foreground mb-1">Revenue</p>
-                    <p class="text-lg font-bold text-green-600">₱{{ formatCurrency(pl.revenue) }}</p>
+                    <p class="text-base sm:text-lg font-bold text-green-600 truncate">{{ formatCurrency(pl.revenue) }}</p>
                 </div>
-                <div class="p-4">
+                <div class="p-3 sm:p-4">
                     <p class="text-xs text-muted-foreground mb-1">COGS</p>
-                    <p class="text-lg font-bold">₱{{ formatCurrency(pl.cogs) }}</p>
+                    <p class="text-base sm:text-lg font-bold truncate">{{ formatCurrency(pl.cogs) }}</p>
                 </div>
-                <div class="p-4">
+                <div class="p-3 sm:p-4">
                     <p class="text-xs text-muted-foreground mb-1">Gross Profit</p>
-                    <p class="text-lg font-bold" :class="pl.gross_profit >= 0 ? 'text-green-600' : 'text-red-600'">
-                        ₱{{ formatCurrency(pl.gross_profit) }}
+                    <p class="text-base sm:text-lg font-bold truncate" :class="pl.gross_profit >= 0 ? 'text-green-600' : 'text-red-600'">
+                        {{ formatCurrency(pl.gross_profit) }}
                     </p>
                 </div>
-                <div class="p-4">
+                <div class="p-3 sm:p-4">
                     <p class="text-xs text-muted-foreground mb-1">Expenses</p>
-                    <p class="text-lg font-bold text-orange-600">₱{{ formatCurrency(pl.expenses) }}</p>
+                    <p class="text-base sm:text-lg font-bold text-orange-600 truncate">{{ formatCurrency(pl.expenses) }}</p>
                 </div>
-                <div class="p-4" :class="pl.net_profit >= 0 ? 'bg-green-50 dark:bg-green-950/20' : 'bg-red-50 dark:bg-red-950/20'">
+                <div class="p-3 sm:p-4 col-span-2 lg:col-span-1" :class="pl.net_profit >= 0 ? 'bg-green-50 dark:bg-green-950/20' : 'bg-red-50 dark:bg-red-950/20'">
                     <p class="text-xs text-muted-foreground mb-1">Net Profit</p>
-                    <p class="text-lg font-bold" :class="pl.net_profit >= 0 ? 'text-green-700' : 'text-red-600'">
-                        ₱{{ formatCurrency(pl.net_profit) }}
+                    <p class="text-base sm:text-lg font-bold truncate" :class="pl.net_profit >= 0 ? 'text-green-700' : 'text-red-600'">
+                        {{ formatCurrency(pl.net_profit) }}
                     </p>
                     <p class="text-xs text-muted-foreground">{{ pl.net_margin }}% margin</p>
                 </div>
@@ -219,12 +219,12 @@ const greeting = computed(() => {
                     <thead class="bg-muted/50">
                         <tr>
                             <th class="px-4 py-2 text-left font-medium text-muted-foreground">Queue #</th>
-                            <th class="px-4 py-2 text-left font-medium text-muted-foreground">Type</th>
-                            <th class="px-4 py-2 text-left font-medium text-muted-foreground">Items</th>
+                            <th class="px-4 py-2 text-left font-medium text-muted-foreground hidden sm:table-cell">Type</th>
+                            <th class="px-4 py-2 text-left font-medium text-muted-foreground hidden sm:table-cell">Items</th>
                             <th class="px-4 py-2 text-left font-medium text-muted-foreground">Total</th>
                             <th class="px-4 py-2 text-left font-medium text-muted-foreground">Status</th>
-                            <th class="px-4 py-2 text-left font-medium text-muted-foreground">Payment</th>
-                            <th class="px-4 py-2 text-left font-medium text-muted-foreground">Time</th>
+                            <th class="px-4 py-2 text-left font-medium text-muted-foreground hidden md:table-cell">Payment</th>
+                            <th class="px-4 py-2 text-left font-medium text-muted-foreground hidden md:table-cell">Time</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y">
@@ -232,8 +232,8 @@ const greeting = computed(() => {
                             <td class="px-4 py-2 font-bold">
                                 {{ order.queue_number ? '#' + order.queue_number : '—' }}
                             </td>
-                            <td class="px-4 py-2 capitalize">{{ order.order_type?.replace('_', ' ') }}</td>
-                            <td class="px-4 py-2">{{ order.items_count }}</td>
+                            <td class="px-4 py-2 capitalize hidden sm:table-cell">{{ order.order_type?.replace('_', ' ') }}</td>
+                            <td class="px-4 py-2 hidden sm:table-cell">{{ order.items_count }}</td>
                             <td class="px-4 py-2 font-semibold">{{ formatCurrency(order.total_amount) }}</td>
                             <td class="px-4 py-2">
                                 <span
@@ -243,8 +243,8 @@ const greeting = computed(() => {
                                     {{ order.status }}
                                 </span>
                             </td>
-                            <td class="px-4 py-2 capitalize">{{ order.payment_status }}</td>
-                            <td class="px-4 py-2 text-muted-foreground">
+                            <td class="px-4 py-2 capitalize hidden md:table-cell">{{ order.payment_status }}</td>
+                            <td class="px-4 py-2 text-muted-foreground hidden md:table-cell">
                                 {{ order.created_at ? new Date(order.created_at).toLocaleTimeString() : '—' }}
                             </td>
                         </tr>

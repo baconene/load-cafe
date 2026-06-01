@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { Chart, registerables } from 'chart.js'
+Chart.register(...registerables)
 import { Head } from '@inertiajs/vue3'
 import { toast } from 'vue-sonner'
 import api from '@/utils/api'
@@ -22,15 +24,11 @@ defineOptions({
 interface DailyReport {
     date: string; total_orders: number; total_sales: number; total_discount: number
 }
-interface MonthlyReport {
-    month: string; total_orders: number; total_sales: number; total_discount: number
-}
 interface ProductSale {
     product_id: number; product_name: string; total_quantity: number; total_sales: number
 }
 interface FtSummary {
     period: { start: string; end: string }
-    orders: { total: number; count: number }
     payments: { total: number; count: number }
     expenses: { total: number; count: number }
     income_adjustments: { total: number; count: number }
@@ -63,7 +61,7 @@ const props = defineProps<{
 }>()
 
 // ── Active tab ─────────────────────────────────────────────────────────────────
-type Tab = 'orders' | 'inventory' | 'financial' | 'daily' | 'monthly' | 'products' | 'pl' | 'bills'
+type Tab = 'orders' | 'inventory' | 'financial' | 'daily' | 'products' | 'pl' | 'bills'
 const tab = ref<Tab>('orders')
 const loading = ref(false)
 
@@ -72,19 +70,31 @@ const tabs: { key: Tab; label: string }[] = [
     { key: 'inventory', label: 'Inventory' },
     { key: 'financial', label: 'Financial' },
     { key: 'daily',     label: 'Daily Sales' },
-    { key: 'monthly',   label: 'Monthly Sales' },
     { key: 'products',  label: 'Product Sales' },
     { key: 'pl',        label: 'P&L' },
     { key: 'bills',     label: 'Bills' },
 ]
 
 // ── Daily / Monthly ────────────────────────────────────────────────────────────
-const today = new Date().toISOString().split('T')[0]
-const selectedDate = ref(today)
-const selectedYear = ref(new Date().getFullYear())
-const selectedMonth = ref(new Date().getMonth() + 1)
-const dailyReport = ref<DailyReport | null>(props.initialDailyReport)
-const monthlyReport = ref<MonthlyReport | null>(null)
+const today   = new Date().toISOString().split('T')[0]
+const sevenDaysAgo = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0]
+const selectedDate  = ref(today)
+const dailyReport   = ref<DailyReport | null>(props.initialDailyReport)
+
+// ── Daily Sales Chart ──────────────────────────────────────────────────────────
+interface ChartDay { date: string; total: number; orders: number }
+type ChartPeriod = '7' | '30' | '90' | 'ytd'
+const chartPeriod = ref<ChartPeriod>('7')
+const chartData = ref<ChartDay[]>([])
+const chartCanvas = ref<HTMLCanvasElement | null>(null)
+let chartInstance: Chart | null = null
+
+const chartPeriods: { key: ChartPeriod; label: string }[] = [
+    { key: '7',   label: '7 Days' },
+    { key: '30',  label: '30 Days' },
+    { key: '90',  label: '90 Days' },
+    { key: 'ytd', label: 'YTD' },
+]
 
 // ── Products ───────────────────────────────────────────────────────────────────
 const productSales = ref<ProductSale[]>(props.initialProductSales)
@@ -93,7 +103,7 @@ const prodDateTo = ref(today)
 
 // ── Orders ─────────────────────────────────────────────────────────────────────
 const ordSearch = ref('')
-const ordDateFrom = ref(today)
+const ordDateFrom = ref(sevenDaysAgo)
 const ordDateTo = ref(today)
 const ordStatus = ref('')
 const ordPayment = ref('')
@@ -184,9 +194,6 @@ const expandedBillId = ref<number | null>(null)
 const payingInstallmentId = ref<number | null>(null)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December']
-const monthName = (n: number) => monthNames[n - 1] ?? ''
-
 const fmt = (v: number | string | null | undefined) =>
     '₱' + parseFloat(String(v ?? 0)).toLocaleString('en-PH', { minimumFractionDigits: 2 })
 
@@ -332,6 +339,76 @@ const loadPL = async () => {
     plReport.value = res.data
 }
 
+const loadChart = async (period: ChartPeriod = chartPeriod.value) => {
+    try {
+        const res = await api.get('/api/v1/reports/daily-sales-chart', { params: { period } })
+        chartData.value = res.data
+        await nextTick()
+        renderChart()
+    } catch { /* non-critical */ }
+}
+
+const renderChart = () => {
+    if (!chartCanvas.value) return
+    const isDark = document.documentElement.classList.contains('dark')
+    const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
+    const textColor = isDark ? '#9ca3af' : '#6b7280'
+
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null }
+
+    chartInstance = new Chart(chartCanvas.value, {
+        type: 'bar',
+        data: {
+            labels: chartData.value.map(d => {
+                const [y, m, day] = d.date.split('-')
+                return `${m}/${day}`
+            }),
+            datasets: [{
+                label: 'Sales (₱)',
+                data: chartData.value.map(d => d.total),
+                backgroundColor: 'rgba(249,115,22,0.75)',
+                borderColor: 'rgba(249,115,22,1)',
+                borderWidth: 1,
+                borderRadius: 4,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `₱${Number(ctx.parsed.y).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+                        afterLabel: (ctx) => {
+                            const d = chartData.value[ctx.dataIndex]
+                            return d ? `${d.orders} order${d.orders !== 1 ? 's' : ''}` : ''
+                        },
+                    },
+                },
+            },
+            scales: {
+                x: { grid: { color: gridColor }, ticks: { color: textColor, maxRotation: 45 } },
+                y: {
+                    grid: { color: gridColor },
+                    ticks: {
+                        color: textColor,
+                        callback: v => '₱' + Number(v).toLocaleString('en-PH', { notation: 'compact' }),
+                    },
+                    beginAtZero: true,
+                },
+            },
+        },
+    })
+}
+
+const setChartPeriod = async (period: ChartPeriod) => {
+    chartPeriod.value = period
+    await loadChart(period)
+}
+
+onBeforeUnmount(() => { if (chartInstance) chartInstance.destroy() })
+
 const generateReport = async () => {
     loading.value = true
     try {
@@ -340,11 +417,11 @@ const generateReport = async () => {
         } else if (tab.value === 'pl') {
             await loadPL()
         } else if (tab.value === 'daily') {
-            const res = await api.get('/api/v1/reports/daily-sales', { params: { date: selectedDate.value } })
-            dailyReport.value = res.data
-        } else if (tab.value === 'monthly') {
-            const res = await api.get('/api/v1/reports/monthly-sales', { params: { year: selectedYear.value, month: selectedMonth.value } })
-            monthlyReport.value = res.data
+            const [dailyRes] = await Promise.all([
+                api.get('/api/v1/reports/daily-sales', { params: { date: selectedDate.value } }),
+                loadChart(chartPeriod.value),
+            ])
+            dailyReport.value = dailyRes.data
         } else if (tab.value === 'products') {
             const res = await api.get('/api/v1/reports/product-sales', {
                 params: { start_date: prodDateFrom.value, end_date: prodDateTo.value },
@@ -577,6 +654,16 @@ onMounted(async () => {
     } catch { /* non-critical */ }
     await generateReport()
 })
+
+// Re-render chart when switching to daily tab so the canvas is in the DOM
+watch(tab, async (t) => {
+    if (t === 'daily' && chartData.value.length === 0) {
+        await loadChart(chartPeriod.value)
+    } else if (t === 'daily') {
+        await nextTick()
+        renderChart()
+    }
+})
 </script>
 
 <template>
@@ -656,21 +743,11 @@ onMounted(async () => {
                         </select></div>
                 </template>
 
-                <!-- Daily date -->
+                <!-- Daily date — for today's stats card only -->
                 <div v-if="tab === 'daily'">
-                    <label class="text-xs font-medium text-muted-foreground block mb-1">Date</label>
+                    <label class="text-xs font-medium text-muted-foreground block mb-1">Today's Stats Date</label>
                     <input v-model="selectedDate" type="date" class="rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                 </div>
-
-                <!-- Monthly pickers -->
-                <template v-if="tab === 'monthly'">
-                    <div><label class="text-xs font-medium text-muted-foreground block mb-1">Year</label>
-                        <input v-model.number="selectedYear" type="number" min="2020" class="w-24 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" /></div>
-                    <div><label class="text-xs font-medium text-muted-foreground block mb-1">Month</label>
-                        <select v-model.number="selectedMonth" class="rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                            <option v-for="m in 12" :key="m" :value="m">{{ monthName(m) }}</option>
-                        </select></div>
-                </template>
 
                 <!-- Product sales date range -->
                 <template v-if="tab === 'products'">
@@ -768,14 +845,14 @@ onMounted(async () => {
                         <thead class="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
                             <tr>
                                 <th class="px-4 py-3 text-left">Order</th>
-                                <th class="px-4 py-3 text-left">Date & Time</th>
-                                <th class="px-4 py-3 text-left">Type</th>
-                                <th class="px-4 py-3 text-left">Table</th>
-                                <th class="px-4 py-3 text-center">Items</th>
+                                <th class="px-4 py-3 text-left hidden sm:table-cell">Date & Time</th>
+                                <th class="px-4 py-3 text-left hidden sm:table-cell">Type</th>
+                                <th class="px-4 py-3 text-left hidden md:table-cell">Table</th>
+                                <th class="px-4 py-3 text-center hidden md:table-cell">Items</th>
                                 <th class="px-4 py-3 text-left">Status</th>
-                                <th class="px-4 py-3 text-left">Payment</th>
+                                <th class="px-4 py-3 text-left hidden sm:table-cell">Payment</th>
                                 <th class="px-4 py-3 text-right">Total</th>
-                                <th class="px-4 py-3 text-left">Notes</th>
+                                <th class="px-4 py-3 text-left hidden lg:table-cell">Notes</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y">
@@ -784,14 +861,14 @@ onMounted(async () => {
                                     <p class="font-bold">#{{ order.id }}</p>
                                     <p v-if="order.queue_number" class="text-xs text-muted-foreground">Q{{ order.queue_number }}</p>
                                 </td>
-                                <td class="px-4 py-3 whitespace-nowrap text-muted-foreground text-xs">{{ fmtDatetime(order.created_at) }}</td>
-                                <td class="px-4 py-3"><span class="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">{{ orderTypeBadge(order.order_type) }}</span></td>
-                                <td class="px-4 py-3 text-muted-foreground">{{ order.table_number ?? '—' }}</td>
-                                <td class="px-4 py-3 text-center font-medium">{{ itemCount(order.items) }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap text-muted-foreground text-xs hidden sm:table-cell">{{ fmtDatetime(order.created_at) }}</td>
+                                <td class="px-4 py-3 hidden sm:table-cell"><span class="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">{{ orderTypeBadge(order.order_type) }}</span></td>
+                                <td class="px-4 py-3 text-muted-foreground hidden md:table-cell">{{ order.table_number ?? '—' }}</td>
+                                <td class="px-4 py-3 text-center font-medium hidden md:table-cell">{{ itemCount(order.items) }}</td>
                                 <td class="px-4 py-3"><span :class="['rounded-full px-2 py-0.5 text-xs font-semibold capitalize', statusBadge(order.status)]">{{ order.status }}</span></td>
-                                <td class="px-4 py-3"><span :class="['rounded-full px-2 py-0.5 text-xs font-semibold capitalize', payBadge(order.payment_status)]">{{ order.payment_status }}</span></td>
+                                <td class="px-4 py-3 hidden sm:table-cell"><span :class="['rounded-full px-2 py-0.5 text-xs font-semibold capitalize', payBadge(order.payment_status)]">{{ order.payment_status }}</span></td>
                                 <td class="px-4 py-3 text-right font-bold">{{ fmt(order.total_amount) }}</td>
-                                <td class="px-4 py-3 text-xs text-muted-foreground max-w-[140px] truncate">{{ order.notes ?? '—' }}</td>
+                                <td class="px-4 py-3 text-xs text-muted-foreground max-w-[140px] truncate hidden lg:table-cell">{{ order.notes ?? '—' }}</td>
                             </tr>
                             <tr v-if="ordersData.length === 0 && !loading">
                                 <td colspan="9" class="px-4 py-10 text-center text-muted-foreground">No orders found. Adjust filters and click Generate.</td>
@@ -841,20 +918,20 @@ onMounted(async () => {
                     <table class="w-full text-sm">
                         <thead class="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
                             <tr>
-                                <th class="px-4 py-3 text-left">Date</th>
+                                <th class="px-4 py-3 text-left hidden sm:table-cell">Date</th>
                                 <th class="px-4 py-3 text-left">Ingredient</th>
                                 <th class="px-4 py-3 text-left">Type</th>
                                 <th class="px-4 py-3 text-right">Qty</th>
-                                <th class="px-4 py-3 text-right">Before</th>
-                                <th class="px-4 py-3 text-right">After</th>
-                                <th class="px-4 py-3 text-left">Reference</th>
-                                <th class="px-4 py-3 text-left">Notes</th>
-                                <th class="px-4 py-3 text-left">By</th>
+                                <th class="px-4 py-3 text-right hidden sm:table-cell">Before</th>
+                                <th class="px-4 py-3 text-right hidden sm:table-cell">After</th>
+                                <th class="px-4 py-3 text-left hidden md:table-cell">Reference</th>
+                                <th class="px-4 py-3 text-left hidden md:table-cell">Notes</th>
+                                <th class="px-4 py-3 text-left hidden md:table-cell">By</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y">
                             <tr v-for="tx in invTransactions" :key="tx.id" class="hover:bg-muted/20">
-                                <td class="px-4 py-2 text-muted-foreground whitespace-nowrap text-xs">{{ tx.created_at?.slice(0, 10) }}</td>
+                                <td class="px-4 py-2 text-muted-foreground whitespace-nowrap text-xs hidden sm:table-cell">{{ tx.created_at?.slice(0, 10) }}</td>
                                 <td class="px-4 py-2 font-medium">
                                     {{ tx.ingredient?.name ?? '—' }}
                                     <span class="text-xs text-muted-foreground ml-1">{{ tx.ingredient?.unit }}</span>
@@ -867,11 +944,11 @@ onMounted(async () => {
                                 <td class="px-4 py-2 text-right font-bold" :class="['stock_in','purchase'].includes(tx.type) ? 'text-green-600' : 'text-red-600'">
                                     {{ ['stock_in','purchase'].includes(tx.type) ? '+' : '-' }}{{ tx.quantity }}
                                 </td>
-                                <td class="px-4 py-2 text-right text-muted-foreground">{{ tx.old_quantity }}</td>
-                                <td class="px-4 py-2 text-right font-medium">{{ tx.new_quantity }}</td>
-                                <td class="px-4 py-2 text-xs text-muted-foreground">{{ tx.reference ?? '—' }}</td>
-                                <td class="px-4 py-2 text-xs text-muted-foreground max-w-[140px] truncate">{{ tx.notes ?? '—' }}</td>
-                                <td class="px-4 py-2 text-xs text-muted-foreground">{{ tx.user?.name ?? '—' }}</td>
+                                <td class="px-4 py-2 text-right text-muted-foreground hidden sm:table-cell">{{ tx.old_quantity }}</td>
+                                <td class="px-4 py-2 text-right font-medium hidden sm:table-cell">{{ tx.new_quantity }}</td>
+                                <td class="px-4 py-2 text-xs text-muted-foreground hidden md:table-cell">{{ tx.reference ?? '—' }}</td>
+                                <td class="px-4 py-2 text-xs text-muted-foreground max-w-[140px] truncate hidden md:table-cell">{{ tx.notes ?? '—' }}</td>
+                                <td class="px-4 py-2 text-xs text-muted-foreground hidden md:table-cell">{{ tx.user?.name ?? '—' }}</td>
                             </tr>
                             <tr v-if="invTransactions.length === 0 && !loading">
                                 <td colspan="9" class="px-4 py-10 text-center text-muted-foreground">No transactions found. Adjust filters and click Generate.</td>
@@ -895,21 +972,16 @@ onMounted(async () => {
 
         <!-- ── Financial ──────────────────────────────────────────────────────── -->
         <template v-if="tab === 'financial'">
-            <div v-if="ftSummary" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div class="rounded-xl border bg-card p-4 shadow-sm">
-                    <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1"><BarChart3 class="h-3 w-3" /> Orders</p>
-                    <p class="text-2xl font-black">{{ ftSummary.orders.count }}</p>
-                    <p class="text-sm font-semibold text-blue-600 mt-0.5">{{ fmt(ftSummary.orders.total) }}</p>
-                </div>
+            <div v-if="ftSummary" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div class="rounded-xl border bg-card p-4 shadow-sm">
                     <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1"><TrendingUp class="h-3 w-3" /> Payments</p>
-                    <p class="text-2xl font-black">{{ ftSummary.payments.count }}</p>
-                    <p class="text-sm font-semibold text-green-600 mt-0.5">{{ fmt(ftSummary.payments.total) }}</p>
+                    <p class="text-2xl font-black">{{ ftSummary.payments?.count ?? 0 }}</p>
+                    <p class="text-sm font-semibold text-green-600 mt-0.5">{{ fmt(ftSummary.payments?.total ?? 0) }}</p>
                 </div>
                 <div class="rounded-xl border bg-card p-4 shadow-sm">
                     <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1"><TrendingDown class="h-3 w-3" /> Expenses</p>
-                    <p class="text-2xl font-black">{{ ftSummary.expenses.count }}</p>
-                    <p class="text-sm font-semibold text-red-600 mt-0.5">{{ fmt(ftSummary.expenses.total) }}</p>
+                    <p class="text-2xl font-black">{{ ftSummary.expenses?.count ?? 0 }}</p>
+                    <p class="text-sm font-semibold text-red-600 mt-0.5">{{ fmt(ftSummary.expenses?.total ?? 0) }}</p>
                 </div>
                 <div class="rounded-xl border bg-card p-4 shadow-sm">
                     <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1"><TrendingUp class="h-3 w-3 text-teal-500" /> Income Adj.</p>
@@ -1018,29 +1090,29 @@ onMounted(async () => {
                     <table class="w-full text-sm">
                         <thead class="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
                             <tr>
-                                <th class="px-4 py-3 text-left">Date</th>
+                                <th class="px-4 py-3 text-left hidden sm:table-cell">Date</th>
                                 <th class="px-4 py-3 text-left">Type</th>
                                 <th class="px-4 py-3 text-left">Description</th>
-                                <th class="px-4 py-3 text-left">Tender</th>
+                                <th class="px-4 py-3 text-left hidden md:table-cell">Tender</th>
                                 <th class="px-4 py-3 text-right">Amount</th>
-                                <th class="px-4 py-3 text-right">Balance</th>
-                                <th class="px-4 py-3 text-left">By</th>
+                                <th class="px-4 py-3 text-right hidden sm:table-cell">Balance</th>
+                                <th class="px-4 py-3 text-left hidden md:table-cell">By</th>
                                 <th class="px-4 py-3"></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y">
                             <tr v-for="tx in ftTransactions" :key="tx.id" class="hover:bg-muted/20">
-                                <td class="px-4 py-2 text-muted-foreground whitespace-nowrap">{{ fmtDatetime(tx.transacted_at) }}</td>
+                                <td class="px-4 py-2 text-muted-foreground whitespace-nowrap hidden sm:table-cell">{{ fmtDatetime(tx.transacted_at) }}</td>
                                 <td class="px-4 py-2"><span :class="['rounded-full px-2 py-0.5 text-xs font-semibold', typeBadgeClass(tx.type)]">{{ typeLabel(tx.type) }}</span></td>
                                 <td class="px-4 py-2 max-w-xs truncate">{{ tx.description }}</td>
-                                <td class="px-4 py-2 text-muted-foreground">{{ tx.tender?.name ?? '—' }}</td>
+                                <td class="px-4 py-2 text-muted-foreground hidden md:table-cell">{{ tx.tender?.name ?? '—' }}</td>
                                 <td class="px-4 py-2 text-right font-bold" :class="isCredit(tx.type) ? 'text-green-600' : 'text-red-600'">
                                     {{ isCredit(tx.type) ? '+' : '-' }}{{ fmt(tx.amount) }}
                                 </td>
-                                <td class="px-4 py-2 text-right font-semibold" :class="tx.running_balance >= 0 ? 'text-foreground' : 'text-red-600'">
+                                <td class="px-4 py-2 text-right font-semibold hidden sm:table-cell" :class="tx.running_balance >= 0 ? 'text-foreground' : 'text-red-600'">
                                     {{ fmt(tx.running_balance) }}
                                 </td>
-                                <td class="px-4 py-2 text-muted-foreground text-xs">{{ tx.user?.name ?? '—' }}</td>
+                                <td class="px-4 py-2 text-muted-foreground text-xs hidden md:table-cell">{{ tx.user?.name ?? '—' }}</td>
                                 <td class="px-4 py-2 text-center">
                                     <button
                                         v-if="tx.type === 'expense' || tx.type === 'income_adjustment'"
@@ -1350,12 +1422,12 @@ onMounted(async () => {
                         <thead class="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
                             <tr>
                                 <th class="px-4 py-3 text-left">Bill / Payable</th>
-                                <th class="px-4 py-3 text-left">Category</th>
+                                <th class="px-4 py-3 text-left hidden sm:table-cell">Category</th>
                                 <th class="px-4 py-3 text-right">Amount</th>
-                                <th class="px-4 py-3 text-left">Frequency</th>
+                                <th class="px-4 py-3 text-left hidden md:table-cell">Frequency</th>
                                 <th class="px-4 py-3 text-left">Next Due</th>
                                 <th class="px-4 py-3 text-left">Status</th>
-                                <th class="px-4 py-3 text-left">Last Paid</th>
+                                <th class="px-4 py-3 text-left hidden md:table-cell">Last Paid</th>
                                 <th class="px-4 py-3 text-center">Actions</th>
                             </tr>
                         </thead>
@@ -1365,19 +1437,19 @@ onMounted(async () => {
                                     <p class="font-semibold">{{ bill.name }}</p>
                                     <p v-if="bill.description" class="text-xs text-muted-foreground truncate max-w-[200px]">{{ bill.description }}</p>
                                 </td>
-                                <td class="px-4 py-3">
+                                <td class="px-4 py-3 hidden sm:table-cell">
                                     <span v-if="bill.category" class="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">{{ bill.category }}</span>
                                     <span v-else class="text-muted-foreground">—</span>
                                 </td>
                                 <td class="px-4 py-3 text-right font-bold">{{ fmt(bill.amount) }}</td>
-                                <td class="px-4 py-3 text-muted-foreground text-xs">{{ frequencyLabel(bill.frequency) }}</td>
+                                <td class="px-4 py-3 text-muted-foreground text-xs hidden md:table-cell">{{ frequencyLabel(bill.frequency) }}</td>
                                 <td class="px-4 py-3 font-medium">{{ bill.due_date }}</td>
                                 <td class="px-4 py-3">
                                     <span :class="['rounded-full px-2 py-0.5 text-xs font-semibold', billStatusBadge(bill.status)]">
                                         {{ billStatusLabel(bill.status) }}
                                     </span>
                                 </td>
-                                <td class="px-4 py-3 text-xs text-muted-foreground">{{ bill.last_paid_at ? fmtDatetime(bill.last_paid_at) : '—' }}</td>
+                                <td class="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">{{ bill.last_paid_at ? fmtDatetime(bill.last_paid_at) : '—' }}</td>
                                 <td class="px-4 py-3">
                                     <div class="flex items-center gap-1 justify-center">
                                         <button v-if="bill.is_active" @click="payBill(bill)" :disabled="billPaying === bill.id"
@@ -1448,12 +1520,57 @@ onMounted(async () => {
         </template>
 
         <!-- ── Daily Sales ────────────────────────────────────────────────────── -->
-        <template v-if="tab === 'daily' && dailyReport">
-            <div class="rounded-xl border bg-card p-4 shadow-sm">
-                <h2 class="font-bold text-base mb-4">Daily Sales — {{ dailyReport.date }}</h2>
+        <template v-if="tab === 'daily'">
+            <!-- Period selector + chart -->
+            <div class="rounded-xl border bg-card shadow-sm p-4 space-y-4">
+                <div class="flex items-center justify-between flex-wrap gap-3">
+                    <h2 class="font-bold text-base flex items-center gap-2">
+                        <BarChart3 class="h-4 w-4 text-orange-500" /> Sales Trend
+                    </h2>
+                    <div class="flex gap-1">
+                        <button
+                            v-for="p in chartPeriods" :key="p.key"
+                            @click="setChartPeriod(p.key)"
+                            :class="[
+                                'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
+                                chartPeriod === p.key
+                                    ? 'bg-orange-500 text-white shadow-sm'
+                                    : 'border text-muted-foreground hover:bg-muted',
+                            ]"
+                        >{{ p.label }}</button>
+                    </div>
+                </div>
+                <div class="relative" style="height:300px">
+                    <canvas ref="chartCanvas"></canvas>
+                    <div v-if="chartData.length === 0 && !loading"
+                        class="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                        No sales data for this period.
+                    </div>
+                </div>
+                <div v-if="chartData.length > 0" class="grid grid-cols-3 gap-3 border-t pt-3">
+                    <div class="text-center">
+                        <p class="text-xs text-muted-foreground mb-0.5">Total Revenue</p>
+                        <p class="font-black text-green-600">{{ fmt(chartData.reduce((s,d) => s + d.total, 0)) }}</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-xs text-muted-foreground mb-0.5">Total Orders</p>
+                        <p class="font-black">{{ chartData.reduce((s,d) => s + d.orders, 0) }}</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-xs text-muted-foreground mb-0.5">Avg / Day</p>
+                        <p class="font-black text-blue-600">
+                            {{ fmt(chartData.length > 0 ? chartData.reduce((s,d) => s + d.total, 0) / chartData.filter(d => d.total > 0).length || 0 : 0) }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Today stats card -->
+            <div v-if="dailyReport" class="rounded-xl border bg-card p-4 shadow-sm">
+                <h2 class="font-bold text-sm mb-3 text-muted-foreground uppercase tracking-wider">Today — {{ dailyReport.date }}</h2>
                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
                     <div class="rounded-lg bg-muted/40 p-4">
-                        <p class="text-xs text-muted-foreground mb-1">Total Orders</p>
+                        <p class="text-xs text-muted-foreground mb-1">Orders</p>
                         <p class="text-3xl font-black">{{ dailyReport.total_orders }}</p>
                     </div>
                     <div class="rounded-lg bg-green-50 dark:bg-green-950/20 p-4">
@@ -1463,29 +1580,6 @@ onMounted(async () => {
                     <div class="rounded-lg bg-yellow-50 dark:bg-yellow-950/20 p-4">
                         <p class="text-xs text-muted-foreground mb-1">Discounts</p>
                         <p class="text-2xl font-black text-yellow-600">{{ fmt(dailyReport.total_discount) }}</p>
-                    </div>
-                </div>
-            </div>
-        </template>
-
-        <!-- ── Monthly Sales ──────────────────────────────────────────────────── -->
-        <template v-if="tab === 'monthly' && monthlyReport">
-            <div class="rounded-xl border bg-card p-4 shadow-sm">
-                <h2 class="font-bold text-base mb-4">
-                    Monthly Sales — {{ monthName(Number(monthlyReport.month?.split('-')[1])) }} {{ monthlyReport.month?.split('-')[0] }}
-                </h2>
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    <div class="rounded-lg bg-muted/40 p-4">
-                        <p class="text-xs text-muted-foreground mb-1">Total Orders</p>
-                        <p class="text-3xl font-black">{{ monthlyReport.total_orders }}</p>
-                    </div>
-                    <div class="rounded-lg bg-green-50 dark:bg-green-950/20 p-4">
-                        <p class="text-xs text-muted-foreground mb-1 flex items-center gap-1"><TrendingUp class="h-3 w-3" /> Revenue</p>
-                        <p class="text-2xl font-black text-green-600">{{ fmt(monthlyReport.total_sales) }}</p>
-                    </div>
-                    <div class="rounded-lg bg-yellow-50 dark:bg-yellow-950/20 p-4">
-                        <p class="text-xs text-muted-foreground mb-1">Discounts</p>
-                        <p class="text-2xl font-black text-yellow-600">{{ fmt(monthlyReport.total_discount) }}</p>
                     </div>
                 </div>
             </div>

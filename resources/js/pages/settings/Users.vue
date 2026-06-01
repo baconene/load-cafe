@@ -138,14 +138,14 @@ const submitForm = () => {
     <Head title="User Management" />
 
     <div class="space-y-6">
-        <div class="flex items-start justify-between">
-            <div>
+        <div class="flex items-start justify-between gap-3 flex-wrap">
+            <div class="flex-1 min-w-0">
                 <h2 class="text-base font-semibold">User Management</h2>
                 <p class="text-sm text-muted-foreground mt-0.5">Manage staff accounts and role assignments. Users can hold multiple roles simultaneously.</p>
             </div>
             <button
                 @click="openCreateModal"
-                class="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90"
+                class="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 shrink-0"
             >
                 <UserPlus class="h-4 w-4" />
                 Add User
@@ -154,13 +154,14 @@ const submitForm = () => {
 
         <!-- Users table -->
         <div class="rounded-xl border bg-card shadow-sm overflow-hidden">
+            <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead class="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
                     <tr>
                         <th class="px-4 py-3 text-left">Name</th>
-                        <th class="px-4 py-3 text-left">Email</th>
+                        <th class="px-4 py-3 text-left hidden sm:table-cell">Email</th>
                         <th class="px-4 py-3 text-left">Roles</th>
-                        <th class="px-4 py-3 text-left">Joined</th>
+                        <th class="px-4 py-3 text-left hidden md:table-cell">Joined</th>
                         <th class="px-4 py-3 text-right">Actions</th>
                     </tr>
                 </thead>
@@ -168,14 +169,17 @@ const submitForm = () => {
                     <tr v-for="user in users" :key="user.id" class="hover:bg-muted/20">
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-2">
-                                <div class="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                                <div class="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
                                     {{ user.name.charAt(0).toUpperCase() }}
                                 </div>
-                                <span class="font-medium">{{ user.name }}</span>
-                                <span v-if="user.id === currentUserId" class="text-xs text-muted-foreground">(you)</span>
+                                <div class="min-w-0">
+                                    <span class="font-medium truncate block">{{ user.name }}</span>
+                                    <span v-if="user.id === currentUserId" class="text-xs text-muted-foreground">(you)</span>
+                                    <span class="text-xs text-muted-foreground sm:hidden truncate block">{{ user.email }}</span>
+                                </div>
                             </div>
                         </td>
-                        <td class="px-4 py-3 text-muted-foreground">{{ user.email }}</td>
+                        <td class="px-4 py-3 text-muted-foreground hidden sm:table-cell">{{ user.email }}</td>
                         <td class="px-4 py-3">
                             <div class="flex flex-wrap gap-1">
                                 <span
@@ -185,7 +189,7 @@ const submitForm = () => {
                                 <span v-if="user.roles.length === 0" class="text-xs text-muted-foreground italic">No roles</span>
                             </div>
                         </td>
-                        <td class="px-4 py-3 text-muted-foreground text-xs">{{ user.created_at }}</td>
+                        <td class="px-4 py-3 text-muted-foreground text-xs hidden md:table-cell">{{ user.created_at }}</td>
                         <td class="px-4 py-3">
                             <div class="flex items-center justify-end gap-1">
                                 <button
@@ -209,6 +213,7 @@ const submitForm = () => {
                     </tr>
                 </tbody>
             </table>
+            </div>
         </div>
 
         <!-- Role legend -->
@@ -230,7 +235,7 @@ const submitForm = () => {
     <!-- ── Edit Roles Modal ──────────────────────────────────────────────────── -->
     <Teleport to="body">
         <div v-if="editingUser" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div class="w-full max-w-md rounded-xl bg-background shadow-xl">
+            <div class="w-full max-w-md rounded-xl bg-background shadow-xl max-h-[90vh] overflow-y-auto">
                 <div class="flex items-center justify-between border-b p-4">
                     <div>
                         <h2 class="font-semibold text-base">Edit Roles</h2>
@@ -319,7 +324,7 @@ const submitForm = () => {
     <!-- ── Create User Modal ─────────────────────────────────────────────────── -->
     <Teleport to="body">
         <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div class="w-full max-w-md rounded-xl bg-background shadow-xl">
+            <div class="w-full max-w-md rounded-xl bg-background shadow-xl max-h-[90vh] overflow-y-auto">
                 <div class="flex items-center justify-between border-b p-4">
                     <h2 class="font-semibold text-base flex items-center gap-2">
                         <UserPlus class="h-4 w-4" /> New Staff Account

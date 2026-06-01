@@ -264,11 +264,11 @@ const doDelete = async () => {
                     <thead class="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
                         <tr>
                             <th class="px-4 py-3 text-left">Product</th>
-                            <th class="px-4 py-3 text-left">Category</th>
+                            <th class="px-4 py-3 text-left hidden sm:table-cell">Category</th>
                             <th class="px-4 py-3 text-right">Price</th>
-                            <th class="px-4 py-3 text-right">Cost</th>
-                            <th class="px-4 py-3 text-center">Ingredients</th>
-                            <th class="px-4 py-3 text-center">Status</th>
+                            <th class="px-4 py-3 text-right hidden md:table-cell">Cost</th>
+                            <th class="px-4 py-3 text-center hidden md:table-cell">Ingredients</th>
+                            <th class="px-4 py-3 text-center hidden sm:table-cell">Status</th>
                             <th class="px-4 py-3 text-center">Actions</th>
                         </tr>
                     </thead>
@@ -288,16 +288,16 @@ const doDelete = async () => {
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-4 py-3 text-muted-foreground">{{ p.category_name ?? '—' }}</td>
+                            <td class="px-4 py-3 text-muted-foreground hidden sm:table-cell">{{ p.category_name ?? '—' }}</td>
                             <td class="px-4 py-3 text-right font-bold">₱{{ p.price.toFixed(2) }}</td>
-                            <td class="px-4 py-3 text-right text-muted-foreground">₱{{ p.cost.toFixed(2) }}</td>
-                            <td class="px-4 py-3 text-center">
+                            <td class="px-4 py-3 text-right text-muted-foreground hidden md:table-cell">₱{{ p.cost.toFixed(2) }}</td>
+                            <td class="px-4 py-3 text-center hidden md:table-cell">
                                 <span class="inline-flex items-center gap-1 text-xs text-muted-foreground">
                                     <UtensilsCrossed class="h-3.5 w-3.5" />
                                     {{ p.recipes.length }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-center">
+                            <td class="px-4 py-3 text-center hidden sm:table-cell">
                                 <span :class="['rounded-full px-2.5 py-0.5 text-xs font-semibold', p.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400']">
                                     {{ p.is_active ? 'Active' : 'Inactive' }}
                                 </span>
@@ -314,7 +314,7 @@ const doDelete = async () => {
                             </td>
                         </tr>
                         <tr v-if="filtered.length === 0">
-                            <td colspan="7" class="px-4 py-10 text-center text-muted-foreground text-sm">No products found.</td>
+                            <td colspan="7" class="px-4 py-10 text-center text-muted-foreground text-sm" style="text-align:center">No products found.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -327,16 +327,16 @@ const doDelete = async () => {
         <Transition name="fade">
             <div
                 v-if="showModal"
-                class="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
                 @click.self="showModal = false"
             >
-                <div class="w-full max-w-2xl rounded-2xl bg-background shadow-2xl my-8">
-                    <div class="p-5 border-b flex items-center justify-between">
+                <div class="w-full max-w-2xl rounded-2xl bg-background shadow-2xl my-4 sm:my-8 max-h-[92vh] flex flex-col">
+                    <div class="p-5 border-b flex items-center justify-between shrink-0">
                         <h3 class="text-lg font-bold">{{ editingId ? 'Edit Product' : 'Add Product' }}</h3>
                         <button @click="showModal = false" class="rounded-full p-1 hover:bg-muted"><X class="h-4 w-4" /></button>
                     </div>
 
-                    <div class="p-5 space-y-5">
+                    <div class="p-5 space-y-5 overflow-y-auto flex-1">
                         <!-- Image Upload -->
                         <div>
                             <label class="text-xs font-medium text-muted-foreground block mb-2">Product Image</label>
@@ -454,25 +454,27 @@ const doDelete = async () => {
                                 No ingredients linked — inventory won't be deducted for this product.
                             </div>
                             <div v-else class="space-y-2">
-                                <div v-for="(row, i) in recipes" :key="i" class="flex items-center gap-2 rounded-lg border bg-muted/20 p-2">
+                                <div v-for="(row, i) in recipes" :key="i" class="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border bg-muted/20 p-2">
                                     <select v-model="row.ingredient_id" @change="onIngredientChange(i)"
                                         class="flex-1 rounded-md border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary">
                                         <option :value="0" disabled>Select ingredient…</option>
                                         <option v-for="ing in ingredientOptions" :key="ing.id" :value="ing.id">{{ ing.name }} ({{ ing.unit }})</option>
                                     </select>
-                                    <input v-model.number="row.quantity" type="number" min="0.001" step="0.001" placeholder="Qty"
-                                        class="w-24 rounded-md border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
-                                    <input v-model="row.unit" type="text" placeholder="unit"
-                                        class="w-16 rounded-md border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
-                                    <button @click="removeRecipeRow(i)" class="text-muted-foreground hover:text-red-500">
-                                        <MinusCircle class="h-4 w-4" />
-                                    </button>
+                                    <div class="flex items-center gap-2">
+                                        <input v-model.number="row.quantity" type="number" min="0.001" step="0.001" placeholder="Qty"
+                                            class="flex-1 sm:w-24 sm:flex-none rounded-md border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+                                        <input v-model="row.unit" type="text" placeholder="unit"
+                                            class="flex-1 sm:w-16 sm:flex-none rounded-md border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
+                                        <button @click="removeRecipeRow(i)" class="text-muted-foreground hover:text-red-500 shrink-0">
+                                            <MinusCircle class="h-4 w-4" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="p-5 border-t flex gap-3">
+                    <div class="p-5 border-t flex gap-3 shrink-0">
                         <button @click="showModal = false" class="flex-1 rounded-lg border py-2 text-sm font-medium hover:bg-muted">Cancel</button>
                         <button @click="submitForm" :disabled="submitting"
                             class="flex-1 rounded-lg bg-primary py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">

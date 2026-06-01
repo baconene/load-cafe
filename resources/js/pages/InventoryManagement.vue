@@ -216,33 +216,36 @@ const typeColor: Record<string, string> = {
                     <thead class="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
                         <tr>
                             <th class="px-4 py-3 text-left">Item</th>
-                            <th class="px-4 py-3 text-left">Type</th>
-                            <th class="px-4 py-3 text-left">Unit</th>
-                            <th class="px-4 py-3 text-right">Current Stock</th>
-                            <th class="px-4 py-3 text-right">Minimum</th>
-                            <th class="px-4 py-3 text-right">Cost/Unit</th>
-                            <th class="px-4 py-3 text-center">Status</th>
+                            <th class="px-4 py-3 text-left hidden sm:table-cell">Type</th>
+                            <th class="px-4 py-3 text-left hidden md:table-cell">Unit</th>
+                            <th class="px-4 py-3 text-right">Stock</th>
+                            <th class="px-4 py-3 text-right hidden sm:table-cell">Minimum</th>
+                            <th class="px-4 py-3 text-right hidden md:table-cell">Cost/Unit</th>
+                            <th class="px-4 py-3 text-center hidden sm:table-cell">Status</th>
                             <th class="px-4 py-3 text-center">Action</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y">
                         <tr v-for="item in filtered" :key="item.id" :class="['hover:bg-muted/20', item.is_low_stock ? 'bg-red-50/50 dark:bg-red-950/10' : '']">
-                            <td class="px-4 py-3 font-medium flex items-center gap-2">
-                                <Package class="h-4 w-4 text-muted-foreground shrink-0" />
-                                {{ item.name }}
+                            <td class="px-4 py-3 font-medium">
+                                <div class="flex items-center gap-2">
+                                    <Package class="h-4 w-4 text-muted-foreground shrink-0" />
+                                    <span class="truncate max-w-[8rem] sm:max-w-none">{{ item.name }}</span>
+                                </div>
+                                <span v-if="item.is_low_stock" class="text-xs text-red-500 sm:hidden">Low Stock</span>
                             </td>
-                            <td class="px-4 py-3">
+                            <td class="px-4 py-3 hidden sm:table-cell">
                                 <span :class="['rounded-full px-2.5 py-0.5 text-xs font-semibold', itemTypeColor(item.item_type)]">
                                     {{ itemTypeLabel(item.item_type) }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-muted-foreground">{{ item.unit }}</td>
+                            <td class="px-4 py-3 text-muted-foreground hidden md:table-cell">{{ item.unit }}</td>
                             <td class="px-4 py-3 text-right font-bold" :class="item.is_low_stock ? 'text-red-600' : ''">
                                 {{ item.current_quantity.toFixed(2) }}
                             </td>
-                            <td class="px-4 py-3 text-right text-muted-foreground">{{ item.min_quantity.toFixed(2) }}</td>
-                            <td class="px-4 py-3 text-right text-muted-foreground">₱{{ item.cost_per_unit.toFixed(2) }}</td>
-                            <td class="px-4 py-3 text-center">
+                            <td class="px-4 py-3 text-right text-muted-foreground hidden sm:table-cell">{{ item.min_quantity.toFixed(2) }}</td>
+                            <td class="px-4 py-3 text-right text-muted-foreground hidden md:table-cell">₱{{ item.cost_per_unit.toFixed(2) }}</td>
+                            <td class="px-4 py-3 text-center hidden sm:table-cell">
                                 <span :class="['rounded-full px-2.5 py-0.5 text-xs font-semibold', item.is_low_stock ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300']">
                                     {{ item.is_low_stock ? 'Low Stock' : 'OK' }}
                                 </span>
@@ -286,10 +289,10 @@ const typeColor: Record<string, string> = {
                             <th class="px-4 py-3 text-left">Ingredient</th>
                             <th class="px-4 py-3 text-left">Type</th>
                             <th class="px-4 py-3 text-right">Qty</th>
-                            <th class="px-4 py-3 text-right">Before → After</th>
-                            <th class="px-4 py-3 text-left">By</th>
-                            <th class="px-4 py-3 text-left">Source / Notes</th>
-                            <th class="px-4 py-3 text-left">Time</th>
+                            <th class="px-4 py-3 text-right hidden sm:table-cell">Before → After</th>
+                            <th class="px-4 py-3 text-left hidden md:table-cell">By</th>
+                            <th class="px-4 py-3 text-left hidden md:table-cell">Source / Notes</th>
+                            <th class="px-4 py-3 text-left hidden sm:table-cell">Time</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y">
@@ -301,11 +304,11 @@ const typeColor: Record<string, string> = {
                                 </span>
                             </td>
                             <td class="px-4 py-2 text-right font-bold">{{ tx.quantity }}</td>
-                            <td class="px-4 py-2 text-right text-xs text-muted-foreground">
+                            <td class="px-4 py-2 text-right text-xs text-muted-foreground hidden sm:table-cell">
                                 {{ tx.old_quantity.toFixed(2) }} → {{ tx.new_quantity.toFixed(2) }}
                             </td>
-                            <td class="px-4 py-2 text-muted-foreground text-xs">{{ tx.user_name ?? '—' }}</td>
-                            <td class="px-4 py-2 text-xs max-w-xs">
+                            <td class="px-4 py-2 text-muted-foreground text-xs hidden md:table-cell">{{ tx.user_name ?? '—' }}</td>
+                            <td class="px-4 py-2 text-xs max-w-xs hidden md:table-cell">
                                 <div class="flex flex-col gap-1">
                                     <a v-if="tx.order_id"
                                         :href="`/orders/${tx.order_id}`"
@@ -317,7 +320,7 @@ const typeColor: Record<string, string> = {
                                     <span v-if="!tx.order_id && !tx.notes" class="text-muted-foreground">—</span>
                                 </div>
                             </td>
-                            <td class="px-4 py-2 text-muted-foreground text-xs whitespace-nowrap">
+                            <td class="px-4 py-2 text-muted-foreground text-xs whitespace-nowrap hidden sm:table-cell">
                                 {{ tx.created_at ? new Date(tx.created_at).toLocaleString() : '—' }}
                             </td>
                         </tr>
@@ -340,8 +343,8 @@ const typeColor: Record<string, string> = {
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
                 @click.self="showAddIngredient = false"
             >
-                <div class="w-full max-w-md rounded-2xl bg-background shadow-2xl">
-                    <div class="p-5 border-b flex items-center justify-between">
+                <div class="w-full max-w-md rounded-2xl bg-background shadow-2xl max-h-[90vh] overflow-y-auto">
+                    <div class="p-5 border-b flex items-center justify-between sticky top-0 bg-background z-10">
                         <h3 class="text-lg font-bold">Add Inventory Item</h3>
                         <button @click="showAddIngredient = false" class="rounded-full p-1 hover:bg-muted">
                             <X class="h-4 w-4" />
@@ -411,8 +414,8 @@ const typeColor: Record<string, string> = {
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
                 @click.self="selectedItem = null"
             >
-                <div class="w-full max-w-md rounded-2xl bg-background shadow-2xl">
-                    <div class="p-5 border-b flex items-start justify-between">
+                <div class="w-full max-w-md rounded-2xl bg-background shadow-2xl max-h-[90vh] overflow-y-auto">
+                    <div class="p-5 border-b flex items-start justify-between sticky top-0 bg-background z-10">
                         <div>
                             <h3 class="text-lg font-bold">Adjust Stock</h3>
                             <p class="text-sm text-muted-foreground">{{ selectedItem.name }}</p>
@@ -482,8 +485,8 @@ const typeColor: Record<string, string> = {
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
                 @click.self="editingIngredient = null"
             >
-                <div class="w-full max-w-md rounded-2xl bg-background shadow-2xl">
-                    <div class="p-5 border-b flex items-center justify-between">
+                <div class="w-full max-w-md rounded-2xl bg-background shadow-2xl max-h-[90vh] overflow-y-auto">
+                    <div class="p-5 border-b flex items-center justify-between sticky top-0 bg-background z-10">
                         <h3 class="text-lg font-bold">Edit Ingredient</h3>
                         <button @click="editingIngredient = null" class="rounded-full p-1 hover:bg-muted">
                             <X class="h-4 w-4" />

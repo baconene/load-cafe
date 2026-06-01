@@ -134,9 +134,9 @@ const reprintReceipt = async () => {
                 </p>
             </div>
             <button @click="reprintReceipt" :disabled="printing"
-                class="flex items-center gap-2 rounded-lg border bg-card px-4 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50 shrink-0 transition-colors">
+                class="flex items-center gap-2 rounded-lg border bg-card px-3 sm:px-4 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50 shrink-0 transition-colors">
                 <Printer class="h-4 w-4" />
-                {{ printing ? 'Printing…' : 'Reprint Receipt' }}
+                <span class="hidden sm:inline">{{ printing ? 'Printing…' : 'Reprint Receipt' }}</span>
             </button>
         </div>
 
@@ -218,9 +218,9 @@ const reprintReceipt = async () => {
                         <tr>
                             <th class="px-4 py-3 text-left">Product</th>
                             <th class="px-4 py-3 text-center">Qty</th>
-                            <th class="px-4 py-3 text-right">Unit Price</th>
+                            <th class="px-4 py-3 text-right hidden sm:table-cell">Unit Price</th>
                             <th class="px-4 py-3 text-right">Subtotal</th>
-                            <th class="px-4 py-3 text-right">Cost</th>
+                            <th class="px-4 py-3 text-right hidden sm:table-cell">Cost</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y">
@@ -239,9 +239,9 @@ const reprintReceipt = async () => {
                                 </p>
                             </td>
                             <td class="px-4 py-3 text-center font-bold">× {{ item.quantity }}</td>
-                            <td class="px-4 py-3 text-right">{{ fmt(item.unit_price) }}</td>
+                            <td class="px-4 py-3 text-right hidden sm:table-cell">{{ fmt(item.unit_price) }}</td>
                             <td class="px-4 py-3 text-right font-bold">{{ fmt(item.subtotal) }}</td>
-                            <td class="px-4 py-3 text-right text-muted-foreground text-xs">
+                            <td class="px-4 py-3 text-right text-muted-foreground text-xs hidden sm:table-cell">
                                 {{ item.unit_cost > 0 ? fmt(item.cost_subtotal) : '—' }}
                             </td>
                         </tr>

@@ -11,7 +11,8 @@ class ReportService
     {
         $date ??= Carbon::today();
 
-        $orders = Order::whereDate('created_at', $date->toDateString())
+        $orders = Order::where('created_at', '>=', $date->copy()->startOfDay())
+            ->where('created_at', '<=', $date->copy()->endOfDay())
             ->where('payment_status', 'paid')
             ->get();
 
