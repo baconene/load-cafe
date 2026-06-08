@@ -9,12 +9,12 @@ defineProps<{
 
 const page = usePage();
 const logoUrl = (page.props as any).logoUrl as string | null;
-const brandName = ((page.props as any).brandName as string | null) ?? 'Bypass Grill';
+const brandName = ((page.props as any).brandName as string | null) ?? 'Load Cafe';
 </script>
 
 <template>
     <div class="min-h-svh lg:grid lg:grid-cols-2">
-        <!-- Left panel — BypassGrill branding -->
+        <!-- Left panel — Load Cafe branding -->
         <div class="relative hidden lg:flex flex-col justify-between bg-zinc-950 p-12 overflow-hidden">
             <!-- Warm glow -->
             <div class="absolute inset-0 bg-gradient-to-br from-orange-950/60 via-zinc-950 to-zinc-950 pointer-events-none" />

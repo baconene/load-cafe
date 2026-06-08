@@ -76,7 +76,7 @@ const sendTestChannels = async () => {
 }
 
 // Pusher Beams test (secondary — FCM wake-up)
-const beamsTest = ref({ interest: 'print-jobs', title: 'Test from BypassGrill', body: 'Push notifications are working!' })
+const beamsTest = ref({ interest: 'print-jobs', title: 'Test from Load Cafe', body: 'Push notifications are working!' })
 const beamsTesting = ref(false)
 const beamsResult = ref<{ ok: boolean; message: string } | null>(null)
 
@@ -184,8 +184,8 @@ onMounted(() => {
             </h3>
             <p class="text-xs text-muted-foreground -mt-1">
                 The Pusher WebSocket channel receipts are broadcast to. Point different outlets at
-                different channels — e.g. <code class="bg-muted px-1 rounded">BypassGrill</code> or
-                <code class="bg-muted px-1 rounded">Load-Cafe</code> — and set the Android app's
+                different channels — e.g. <code class="bg-muted px-1 rounded">LoadCafe</code> or
+                <code class="bg-muted px-1 rounded">Load-Cafe-2</code> — and set the Android app's
                 <code class="bg-muted px-1 rounded">ws_channel</code> to match.
             </p>
             <div>
@@ -294,7 +294,7 @@ onMounted(() => {
                 <input
                     v-model="form.print_store_name"
                     type="text"
-                    placeholder="e.g. BypassGrill"
+                    placeholder="e.g. Load Cafe"
                     class="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
             </div>

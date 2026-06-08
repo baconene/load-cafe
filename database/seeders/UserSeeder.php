@@ -13,7 +13,7 @@ class UserSeeder extends Seeder
         // Admin user
         $admin = User::create([
             'name' => 'Admin User',
-            'email' => 'admin@bypassgrill.local',
+            'email' => 'admin@loadcafe.local',
             'password' => Hash::make('password'),
             'email_verified_at' => now(),
         ]);
@@ -22,7 +22,7 @@ class UserSeeder extends Seeder
         // Cashier users
         $cashier1 = User::create([
             'name' => 'Maria Santos',
-            'email' => 'maria@bypassgrill.local',
+            'email' => 'maria@loadcafe.local',
             'password' => Hash::make('password'),
             'email_verified_at' => now(),
         ]);
@@ -30,7 +30,7 @@ class UserSeeder extends Seeder
 
         $cashier2 = User::create([
             'name' => 'John Reyes',
-            'email' => 'john@bypassgrill.local',
+            'email' => 'john@loadcafe.local',
             'password' => Hash::make('password'),
             'email_verified_at' => now(),
         ]);
@@ -39,7 +39,7 @@ class UserSeeder extends Seeder
         // Kitchen staff
         $kitchen1 = User::create([
             'name' => 'Chef Rosa',
-            'email' => 'rosa@bypassgrill.local',
+            'email' => 'rosa@loadcafe.local',
             'password' => Hash::make('password'),
             'email_verified_at' => now(),
         ]);
@@ -47,7 +47,7 @@ class UserSeeder extends Seeder
 
         $kitchen2 = User::create([
             'name' => 'Pedro Dela Cruz',
-            'email' => 'pedro@bypassgrill.local',
+            'email' => 'pedro@loadcafe.local',
             'password' => Hash::make('password'),
             'email_verified_at' => now(),
         ]);
@@ -56,7 +56,7 @@ class UserSeeder extends Seeder
         // Auditor
         $auditor = User::create([
             'name' => 'Anna Cruz',
-            'email' => 'anna@bypassgrill.local',
+            'email' => 'anna@loadcafe.local',
             'password' => Hash::make('password'),
             'email_verified_at' => now(),
         ]);

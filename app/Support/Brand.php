@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Storage;
 
 /**
  * Per-deployment brand identity (logo text). Stored in storage (gitignored)
- * so the same codebase can ship as Bypass Grill, Load Cafe, etc. without
+ * so the same codebase can ship as Load Cafe or any other brand without
  * committing brand-specific values.
  */
 class Brand
@@ -26,7 +26,7 @@ class Brand
             // fall through to the config default
         }
 
-        return (string) config('app.name', 'Bypass Grill');
+        return (string) config('app.name', 'Load Cafe');
     }
 
     public static function setName(?string $name): void

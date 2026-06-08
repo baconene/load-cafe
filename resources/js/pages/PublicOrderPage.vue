@@ -38,14 +38,14 @@ const payColor = (s: string) => ({
 </script>
 
 <template>
-    <Head :title="`Order #${order.id} — Bypass Grill`" />
+    <Head :title="`Order #${order.id} — Load Cafe`" />
 
     <div class="min-h-screen bg-background flex justify-center px-3 py-6 sm:py-10">
         <div class="w-full max-w-2xl space-y-4">
 
             <!-- Store header -->
             <div class="text-center mb-2">
-                <h1 class="text-2xl font-black tracking-tight">BYPASS GRILL</h1>
+                <h1 class="text-2xl font-black tracking-tight">LOAD CAFE</h1>
                 <p class="text-xs text-muted-foreground mt-0.5">Filipino Grill Restaurant</p>
             </div>
 
@@ -205,7 +205,7 @@ const payColor = (s: string) => ({
             </div>
 
             <p class="text-center text-xs text-muted-foreground pt-2 pb-4">
-                Thank you for dining with us ♥ · bypassgrill.baconologies.com
+                Thank you for dining with us ♥ · loadcafe.baconologies.com
             </p>
         </div>
     </div>

@@ -20,17 +20,17 @@ class AllUsersSeeder extends Seeder
             ],
             [
                 'name'  => 'Cashier',
-                'email' => 'cashier@bypassgrill.com',
+                'email' => 'cashier@loadcafe.com',
                 'role'  => 'cashier',
             ],
             [
                 'name'  => 'Kitchen Staff',
-                'email' => 'kitchen@bypassgrill.com',
+                'email' => 'kitchen@loadcafe.com',
                 'role'  => 'kitchen',
             ],
             [
                 'name'  => 'Auditor',
-                'email' => 'auditor@bypassgrill.com',
+                'email' => 'auditor@loadcafe.com',
                 'role'  => 'auditor',
             ],
         ];

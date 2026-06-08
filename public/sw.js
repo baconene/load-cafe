@@ -1,4 +1,4 @@
-// BypassGrill POS — Service Worker
+// Load Cafe POS — Service Worker
 // Bump SW_VERSION when deploying a new build so old caches are cleared.
 const SW_VERSION = 'v1'
 const STATIC_CACHE  = `static-${SW_VERSION}`
