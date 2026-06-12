@@ -40,7 +40,7 @@ interface FtSummary {
 }
 interface FtTransaction {
     id: number; type: string; amount: number; description: string; transacted_at: string
-    running_balance: number; notes: string | null
+    financial_balance: number | null; notes: string | null
     user?: { name: string }; tender?: { name: string }
 }
 interface OrderRow {
@@ -379,7 +379,7 @@ const loadOrders = async (page = 1) => {
     const res = await api.get('/api/v1/orders', {
         params: {
             page,
-            per_page: 50,
+            per_page: 20,
             search: ordSearch.value || undefined,
             date_from: ordDateFrom.value || undefined,
             date_to: ordDateTo.value || undefined,
@@ -405,28 +405,51 @@ const loadInventory = async (page = 1) => {
             ingredient_id: invIngredientId.value || undefined,
         },
     })
-    invTransactions.value = res.data.data ?? []
-    invMeta.value = res.data.meta ?? null
+    const invRaw = res.data
+    invTransactions.value = invRaw.data ?? []
+    // Backend returns old-style pagination (keys at top level, no nested meta)
+    invMeta.value = invRaw.meta ?? (invRaw.current_page != null ? {
+        current_page: invRaw.current_page,
+        last_page: invRaw.last_page,
+        from: invRaw.from,
+        to: invRaw.to,
+        total: invRaw.total,
+    } : null)
 }
 
 const loadFinancial = async (page = 1) => {
     ftPage.value = page
-    const [summaryRes, listRes] = await Promise.all([
-        api.get('/api/v1/financial-transactions/summary', {
-            params: { start_date: ftStartDate.value, end_date: ftEndDate.value },
-        }),
-        api.get('/api/v1/financial-transactions', {
-            params: {
-                page,
-                start_date: ftStartDate.value,
-                end_date: ftEndDate.value,
-                type: ftTypeFilter.value || undefined,
-            },
-        }),
-    ])
-    ftSummary.value = summaryRes.data
-    ftTransactions.value = listRes.data.data ?? []
-    ftMeta.value = listRes.data
+    loading.value = true
+    try {
+        const [summaryRes, listRes] = await Promise.all([
+            api.get('/api/v1/financial-transactions/summary', {
+                params: { start_date: ftStartDate.value, end_date: ftEndDate.value },
+            }),
+            api.get('/api/v1/financial-transactions', {
+                params: {
+                    page,
+                    start_date: ftStartDate.value,
+                    end_date: ftEndDate.value,
+                    type: ftTypeFilter.value || undefined,
+                },
+            }),
+        ])
+        ftSummary.value = summaryRes.data
+        const ftRaw = listRes.data
+        ftTransactions.value = ftRaw.data ?? []
+        // Backend returns flat Laravel pagination (no nested meta key)
+        ftMeta.value = ftRaw.meta ?? (ftRaw.current_page != null ? {
+            current_page: ftRaw.current_page,
+            last_page: ftRaw.last_page,
+            from: ftRaw.from,
+            to: ftRaw.to,
+            total: ftRaw.total,
+        } : null)
+    } catch (err: any) {
+        toast.error(err.response?.data?.message ?? 'Failed to load financial records')
+    } finally {
+        loading.value = false
+    }
 }
 
 const loadPL = async () => {
@@ -1247,8 +1270,8 @@ onMounted(async () => {
                                 <td class="px-4 py-2 text-right font-bold" :class="isCredit(tx.type) ? 'text-green-600' : 'text-red-600'">
                                     {{ isCredit(tx.type) ? '+' : '-' }}{{ fmt(tx.amount) }}
                                 </td>
-                                <td class="px-4 py-2 text-right font-semibold" :class="tx.running_balance >= 0 ? 'text-foreground' : 'text-red-600'">
-                                    {{ fmt(tx.running_balance) }}
+                                <td class="px-4 py-2 text-right font-semibold" :class="(tx.financial_balance ?? 0) >= 0 ? 'text-foreground' : 'text-red-600'">
+                                    {{ fmt(tx.financial_balance ?? 0) }}
                                 </td>
                                 <td class="px-4 py-2 text-muted-foreground text-xs">{{ tx.user?.name ?? '—' }}</td>
                                 <td class="px-4 py-2 text-center">
@@ -1276,21 +1299,19 @@ onMounted(async () => {
                         </tbody>
                     </table>
                 </div>
-                <div v-if="ftMeta" class="flex items-center justify-between px-4 py-3 border-t text-xs text-muted-foreground">
-                    <span>Page {{ ftMeta.current_page }} of {{ ftMeta.last_page }} &mdash; {{ ftMeta.total }} transactions</span>
-                    <div class="flex items-center gap-1">
-                        <button
-                            @click="loadFinancial(ftPage - 1)"
-                            :disabled="ftPage <= 1"
-                            class="rounded px-2 py-1 border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                        ><ChevronLeft class="h-3 w-3" /></button>
-                        <span class="px-2">{{ ftPage }}</span>
-                        <button
-                            @click="loadFinancial(ftPage + 1)"
-                            :disabled="ftPage >= ftMeta.last_page"
-                            class="rounded px-2 py-1 border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
-                        ><ChevronRight class="h-3 w-3" /></button>
-                    </div>
+                <div v-if="ftMeta && ftMeta.last_page > 1" class="flex items-center justify-between px-4 py-3 border-t">
+                    <button
+                        @click="loadFinancial(ftPage - 1)"
+                        :disabled="ftPage <= 1 || loading"
+                        class="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-40">
+                        <ChevronLeft class="h-3.5 w-3.5" /> Prev
+                    </button>
+                    <span class="text-xs text-muted-foreground">Showing {{ ftMeta.from }}–{{ ftMeta.to }} of {{ ftMeta.total }}</span>
+                    <button
+                        @click="loadFinancial(ftPage + 1)"
+                        :disabled="ftPage >= ftMeta.last_page || loading"
+                        class="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-40">
+                        Next <ChevronRight class="h-3.5 w-3.5" /></button>
                 </div>
             </div>
             <div v-else-if="!loading" class="rounded-xl border bg-card p-10 text-center shadow-sm text-muted-foreground text-sm">
