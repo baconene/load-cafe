@@ -15,7 +15,7 @@ const props = defineProps<{ categories: { id: number; name: string }[]; products
 // ── Shared filters ──────────────────────────────────────────────────────────
 const today = new Date().toISOString().split('T')[0]
 const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
-const basis = ref<'sales' | 'profit'>('sales')
+const basis = ref<'sales' | 'profit' | 'hybrid'>('sales')
 const startDate = ref(monthStart)
 const endDate = ref(today)
 const categoryId = ref<number | ''>('')
@@ -29,6 +29,16 @@ const fmt = (v: number) => '₱' + (v ?? 0).toLocaleString('en-PH', { minimumFra
 // ── Distribution preview ────────────────────────────────────────────────────
 const result = ref<any>(null)
 const loading = ref(false)
+
+// In hybrid mode only show royalty recipients that are NOT linked to a shareholder
+// (linked ones already appear as the Royalties column inside the member table)
+const visibleRoyaltyRecipients = computed(() => {
+    if (!result.value?.royalty?.by_recipient) return []
+    if (result.value.basis === 'hybrid') {
+        return result.value.royalty.by_recipient.filter((r: any) => !r.shareholder_id)
+    }
+    return result.value.royalty.by_recipient
+})
 
 const params = () => ({
     basis: basis.value, start_date: startDate.value, end_date: endDate.value,
@@ -222,6 +232,7 @@ const tabs = [
                         <div class="flex rounded-lg border overflow-hidden">
                             <button @click="basis = 'sales'; loadPreview()" :class="['px-3 py-2 text-sm font-semibold', basis === 'sales' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted']">Sales</button>
                             <button @click="basis = 'profit'; loadPreview()" :class="['px-3 py-2 text-sm font-semibold', basis === 'profit' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted']">Profit</button>
+                            <button @click="basis = 'hybrid'; loadPreview()" :class="['px-3 py-2 text-sm font-semibold', basis === 'hybrid' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted']">Hybrid</button>
                         </div>
                     </div>
                     <div><label class="text-xs font-medium text-muted-foreground block mb-1">From</label><input v-model="startDate" type="date" class="rounded-lg border bg-background px-3 py-2 text-sm" /></div>
@@ -244,6 +255,48 @@ const tabs = [
             </div>
 
             <template v-if="result">
+                <!-- Financial Summary as-of card -->
+                <div v-if="result.financial_summary" class="rounded-xl border bg-card shadow-sm p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Financial Summary — as of {{ result.financial_summary.period_end }}</p>
+                        <span v-if="result.basis === 'hybrid'" class="rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 px-2.5 py-0.5 text-xs font-semibold">Hybrid: Sales + Profit</span>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                        <div class="space-y-0.5">
+                            <p class="text-[10px] uppercase tracking-wide text-muted-foreground">Gross Sales</p>
+                            <p class="text-base font-bold">{{ fmt(result.financial_summary.gross_sales) }}</p>
+                        </div>
+                        <div class="space-y-0.5">
+                            <p class="text-[10px] uppercase tracking-wide text-muted-foreground">Refunds</p>
+                            <p class="text-base font-bold text-red-500">−{{ fmt(result.financial_summary.refunds) }}</p>
+                        </div>
+                        <div class="space-y-0.5">
+                            <p class="text-[10px] uppercase tracking-wide text-muted-foreground">Net Sales</p>
+                            <p class="text-base font-bold text-blue-600">{{ fmt(result.financial_summary.net_sales) }}</p>
+                        </div>
+                        <div class="space-y-0.5">
+                            <p class="text-[10px] uppercase tracking-wide text-muted-foreground">COGS</p>
+                            <p class="text-base font-bold text-orange-500">−{{ fmt(result.financial_summary.cogs) }}</p>
+                        </div>
+                        <div class="space-y-0.5">
+                            <p class="text-[10px] uppercase tracking-wide text-muted-foreground">Net Profit</p>
+                            <p class="text-base font-bold" :class="result.financial_summary.net_profit >= 0 ? 'text-emerald-600' : 'text-red-500'">{{ fmt(result.financial_summary.net_profit) }}</p>
+                        </div>
+                        <div v-if="result.basis === 'hybrid'" class="space-y-0.5 border-l pl-3">
+                            <p class="text-[10px] uppercase tracking-wide text-muted-foreground">Profit Base</p>
+                            <p class="text-base font-bold text-violet-600">{{ fmt(result.financial_summary.net_profit) }}</p>
+                        </div>
+                        <div v-else class="space-y-0.5 border-l pl-3">
+                            <p class="text-[10px] uppercase tracking-wide text-muted-foreground">{{ result.basis === 'profit' ? 'Profit Margin' : 'Sales Basis' }}</p>
+                            <p class="text-base font-bold text-primary">{{ result.basis === 'profit' ? (result.financial_summary.gross_sales > 0 ? ((result.financial_summary.net_profit / result.financial_summary.gross_sales) * 100).toFixed(1) + '%' : '—') : fmt(result.financial_summary.sales_base) }}</p>
+                        </div>
+                    </div>
+                    <!-- Hybrid breakdown note -->
+                    <div v-if="result.basis === 'hybrid'" class="mt-3 rounded-lg bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800 p-2.5 text-xs text-violet-800 dark:text-violet-300">
+                        Hybrid adds each member's <strong>profit share</strong> (ownership % × distributable profit) to their <strong>directly linked royalties</strong> (from royalty rules with their account linked). Members with no linked royalty rules receive only their profit share.
+                    </div>
+                </div>
+
                 <!-- Flow KPIs -->
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     <div class="rounded-xl border bg-card p-4 shadow-sm"><p class="text-[10px] uppercase tracking-wide text-muted-foreground">{{ result.base_label }}</p><p class="text-xl font-black mt-1">{{ fmt(result.base_amount) }}</p></div>
@@ -261,23 +314,51 @@ const tabs = [
                     </div>
                     <!-- Member table -->
                     <div class="rounded-xl border bg-card shadow-sm overflow-hidden">
-                        <div class="p-4 border-b"><h3 class="font-bold text-sm">Member Shares</h3></div>
+                        <div class="p-4 border-b flex items-center gap-2">
+                            <h3 class="font-bold text-sm">Member Shares</h3>
+                            <span v-if="result.basis === 'hybrid'" class="rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 px-2 py-0.5 text-xs font-semibold">Profit Share + Royalties</span>
+                        </div>
                         <table class="w-full text-sm">
-                            <thead class="bg-muted/50 text-muted-foreground text-xs uppercase"><tr><th class="px-4 py-2 text-left">Member</th><th class="px-4 py-2 text-right">%</th><th class="px-4 py-2 text-right">Amount</th></tr></thead>
+                            <thead class="bg-muted/50 text-muted-foreground text-xs uppercase">
+                                <tr>
+                                    <th class="px-4 py-2 text-left">Member</th>
+                                    <th class="px-4 py-2 text-right">%</th>
+                                    <th v-if="result.basis === 'hybrid'" class="px-4 py-2 text-right">Profit Share</th>
+                                    <th v-if="result.basis === 'hybrid'" class="px-4 py-2 text-right text-amber-600">Royalties</th>
+                                    <th class="px-4 py-2 text-right">Total</th>
+                                </tr>
+                            </thead>
                             <tbody class="divide-y">
-                                <tr v-for="m in result.members" :key="m.shareholder_id" class="hover:bg-muted/20"><td class="px-4 py-2 font-medium">{{ m.name }}</td><td class="px-4 py-2 text-right">{{ m.percentage }}%</td><td class="px-4 py-2 text-right font-bold">{{ fmt(m.amount) }}</td></tr>
-                                <tr class="bg-muted/30 font-bold"><td class="px-4 py-2">Members total</td><td class="px-4 py-2 text-right">{{ result.members_percentage }}%</td><td class="px-4 py-2 text-right">{{ fmt(result.members_total) }}</td></tr>
-                                <tr class="bg-emerald-50 dark:bg-emerald-950/20 font-bold text-emerald-700 dark:text-emerald-400"><td class="px-4 py-2">Company retained</td><td class="px-4 py-2 text-right">{{ result.company_percentage }}%</td><td class="px-4 py-2 text-right">{{ fmt(result.company_amount) }}</td></tr>
+                                <tr v-for="m in result.members" :key="m.shareholder_id" class="hover:bg-muted/20">
+                                    <td class="px-4 py-2 font-medium">{{ m.name }}</td>
+                                    <td class="px-4 py-2 text-right">{{ m.percentage }}%</td>
+                                    <td v-if="result.basis === 'hybrid'" class="px-4 py-2 text-right text-muted-foreground">{{ fmt(m.profit_share) }}</td>
+                                    <td v-if="result.basis === 'hybrid'" class="px-4 py-2 text-right text-amber-600">{{ m.royalty_amount > 0 ? fmt(m.royalty_amount) : '—' }}</td>
+                                    <td class="px-4 py-2 text-right font-bold">{{ fmt(m.amount) }}</td>
+                                </tr>
+                                <tr class="bg-muted/30 font-bold">
+                                    <td class="px-4 py-2">Members total</td>
+                                    <td class="px-4 py-2 text-right">{{ result.members_percentage }}%</td>
+                                    <td v-if="result.basis === 'hybrid'" colspan="2"></td>
+                                    <td class="px-4 py-2 text-right">{{ fmt(result.members_total) }}</td>
+                                </tr>
+                                <tr class="bg-emerald-50 dark:bg-emerald-950/20 font-bold text-emerald-700 dark:text-emerald-400">
+                                    <td class="px-4 py-2">Company retained</td>
+                                    <td class="px-4 py-2 text-right">{{ result.company_percentage }}%</td>
+                                    <td v-if="result.basis === 'hybrid'" colspan="2"></td>
+                                    <td class="px-4 py-2 text-right">{{ fmt(result.company_amount) }}</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                <!-- Royalty recipients -->
-                <div v-if="result.royalty.by_recipient.length" class="rounded-xl border bg-card shadow-sm p-4">
+                <!-- Royalty recipients: in hybrid, only unlinked recipients shown here;
+                     linked recipients' royalties are already in the member table -->
+                <div v-if="visibleRoyaltyRecipients.length" class="rounded-xl border bg-card shadow-sm p-4">
                     <h3 class="font-bold text-sm mb-2">Royalty Recipients</h3>
                     <div class="flex flex-wrap gap-2">
-                        <span v-for="r in result.royalty.by_recipient" :key="r.recipient_name" class="rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-3 py-1 text-sm font-medium">{{ r.recipient_name }}: {{ fmt(r.amount) }}</span>
+                        <span v-for="r in visibleRoyaltyRecipients" :key="r.recipient_name" class="rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-3 py-1 text-sm font-medium">{{ r.recipient_name }}: {{ fmt(r.amount) }}</span>
                     </div>
                 </div>
             </template>
@@ -360,7 +441,7 @@ const tabs = [
         <!-- ── TRENDS ───────────────────────────────────────────────────── -->
         <template v-if="subTab === 'trends'">
             <div class="rounded-xl border bg-card shadow-sm p-4">
-                <h3 class="font-bold text-sm mb-2 flex items-center gap-2"><TrendingUp class="h-4 w-4 text-primary" /> Monthly Distribution Trend (this year, {{ basis }} basis)</h3>
+                <h3 class="font-bold text-sm mb-2 flex items-center gap-2"><TrendingUp class="h-4 w-4 text-primary" /> Monthly Distribution Trend (this year, {{ basis === 'hybrid' ? 'hybrid (sales + profit)' : basis }} basis)</h3>
                 <apexchart v-if="trend.length" type="line" height="320" :options="trendOptions" :series="trendSeries" />
                 <p v-else class="text-sm text-muted-foreground text-center py-10">No data.</p>
             </div>
@@ -413,15 +494,19 @@ const tabs = [
 
                 <!-- Basis -->
                 <div class="rounded-xl border bg-card shadow-sm p-5 space-y-3">
-                    <h3 class="font-bold text-sm">Sales vs Profit basis</h3>
+                    <h3 class="font-bold text-sm">Sales vs Profit vs Hybrid basis</h3>
                     <div class="space-y-2 text-sm">
                         <p><span class="font-semibold text-primary">Sales basis</span> — shares are computed from
                             <code class="bg-muted px-1 rounded">Net Sales − Refunds</code>. Use when partners are paid on revenue.</p>
                         <p><span class="font-semibold text-primary">Profit basis</span> — shares are computed from
                             <code class="bg-muted px-1 rounded">Net Profit</code> (revenue − COGS − operating expenses), reusing the
                             same figures as your P&amp;L report. Use when partners are paid on actual profit.</p>
-                        <p class="text-xs text-muted-foreground">When you filter Profit basis by a single product or category,
-                            the base becomes that scope's gross profit (net sales − COGS), since operating expenses can't be split per product.</p>
+                        <p><span class="font-semibold text-violet-600">Hybrid basis</span> — each member's payout is
+                            <code class="bg-muted px-1 rounded">Profit Share + their linked Royalties</code>. Profit share is the same
+                            as Profit basis (ownership % × distributable). Royalties are added on top only for members who have royalty
+                            rules directly linked to their shareholder account. Members with no linked rules receive only their profit share.</p>
+                        <p class="text-xs text-muted-foreground">When you filter Profit/Hybrid basis by a single product or category,
+                            the profit component becomes that scope's gross profit (net sales − COGS), since operating expenses can't be split per product.</p>
                     </div>
                 </div>
 
