@@ -26,7 +26,7 @@ let _db: IDBPDatabase | null = null
 
 async function getDB(): Promise<IDBPDatabase> {
     if (_db) return _db
-    _db = await openDB('loadcafe-pos', 1, {
+    _db = await openDB('bypassgrill-pos', 1, {
         upgrade(db) {
             if (!db.objectStoreNames.contains('pending_orders')) {
                 const s = db.createObjectStore('pending_orders', { keyPath: 'localId' })
@@ -46,14 +46,14 @@ async function getDB(): Promise<IDBPDatabase> {
 // Read counter lazily to avoid localStorage errors at module init
 function getCounter(): number {
     try {
-        return parseInt(localStorage.getItem('loadcafe_offline_seq') ?? '0') || 0
+        return parseInt(localStorage.getItem('bypassgrill_offline_seq') ?? '0') || 0
     } catch {
         return 0
     }
 }
 
 function setCounter(n: number) {
-    try { localStorage.setItem('loadcafe_offline_seq', String(n)) } catch { /* ignore */ }
+    try { localStorage.setItem('bypassgrill_offline_seq', String(n)) } catch { /* ignore */ }
 }
 
 function nextOfflineQueueNumber(): string {
@@ -157,6 +157,14 @@ export async function syncQueue(): Promise<{ synced: number; failed: number }> {
             synced++
         } catch (err) {
             await db.put('pending_orders', { ...order, status: 'failed', error: String(err) })
+            // Linked payments can never be synced without a server order ID — mark them failed
+            // so they don't keep pendingCount > 0 and block the banner from clearing.
+            const linked = await db.getAllFromIndex('pending_payments', 'by_order_local_id', order.localId)
+            for (const p of linked) {
+                if (p.status === 'pending') {
+                    await db.put('pending_payments', { ...p, status: 'failed', error: 'Parent order failed to sync' })
+                }
+            }
             failed++
         }
     }
