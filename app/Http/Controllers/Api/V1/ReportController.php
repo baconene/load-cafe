@@ -32,7 +32,9 @@ class ReportController extends Controller
     {
         $this->checkPermission();
 
-        $date = request()->input('date') ? Carbon::parse(request()->input('date')) : null;
+        $date = request()->input('date')
+            ? Carbon::parse(request()->input('date'), 'Asia/Manila')
+            : null;
         $report = $this->reportService->getDailySalesReport($date);
 
         return response()->json($report);
@@ -54,8 +56,12 @@ class ReportController extends Controller
     {
         $this->checkPermission();
 
-        $startDate = request()->input('start_date') ? Carbon::parse(request()->input('start_date')) : null;
-        $endDate = request()->input('end_date') ? Carbon::parse(request()->input('end_date')) : null;
+        $startDate = request()->input('start_date')
+            ? Carbon::parse(request()->input('start_date'), 'Asia/Manila')->startOfDay()
+            : null;
+        $endDate = request()->input('end_date')
+            ? Carbon::parse(request()->input('end_date'), 'Asia/Manila')->endOfDay()
+            : null;
 
         $report = $this->reportService->getProductSalesReport($startDate, $endDate);
 
@@ -76,11 +82,11 @@ class ReportController extends Controller
         $this->checkPermission();
 
         $start = request()->input('start_date')
-            ? Carbon::parse(request()->input('start_date'))
-            : Carbon::now()->startOfMonth();
+            ? Carbon::parse(request()->input('start_date'), 'Asia/Manila')
+            : Carbon::now('Asia/Manila')->startOfMonth();
         $end = request()->input('end_date')
-            ? Carbon::parse(request()->input('end_date'))
-            : Carbon::now()->endOfMonth();
+            ? Carbon::parse(request()->input('end_date'), 'Asia/Manila')
+            : Carbon::now('Asia/Manila')->endOfMonth();
         $includeCogs = request()->boolean('include_cogs', true);
 
         return response()->json($this->reportService->getProfitLossReport($start, $end, $includeCogs));
@@ -118,7 +124,10 @@ class ReportController extends Controller
         $rows = \App\Models\FinancialTransaction::selectRaw(
             "DATE_FORMAT(transacted_at, '%Y-%m') as month,
              SUM(CASE WHEN type IN ('payment','income_adjustment') THEN amount ELSE 0 END) as income,
-             SUM(CASE WHEN type IN ('expense','payroll')           THEN amount ELSE 0 END) as expense"
+             SUM(CASE WHEN type IN ('expense','payroll')
+                      AND description NOT LIKE 'COGS:%'
+                      AND description NOT LIKE 'Inventory Stock In%'
+                 THEN amount ELSE 0 END) as expense"
         )
             ->where('type', '!=', 'order')
             ->whereYear('transacted_at', $year)
@@ -152,7 +161,10 @@ class ReportController extends Controller
         $rows = \App\Models\FinancialTransaction::selectRaw(
             "DATE(transacted_at) as date,
              SUM(CASE WHEN type IN ('payment','income_adjustment') THEN amount ELSE 0 END) as income,
-             SUM(CASE WHEN type IN ('expense','payroll')           THEN amount ELSE 0 END) as expense"
+             SUM(CASE WHEN type IN ('expense','payroll')
+                      AND description NOT LIKE 'COGS:%'
+                      AND description NOT LIKE 'Inventory Stock In%'
+                 THEN amount ELSE 0 END) as expense"
         )
             ->where('type', '!=', 'order')
             ->whereBetween('transacted_at', [$start, $end])
@@ -172,6 +184,124 @@ class ReportController extends Controller
         }
 
         return response()->json($result);
+    }
+
+    public function ftBreakdown(): JsonResponse
+    {
+        $this->checkPermission();
+
+        $start = Carbon::parse(request()->input('start_date', Carbon::today()->toDateString()))->startOfDay();
+        $end   = Carbon::parse(request()->input('end_date',   Carbon::today()->toDateString()))->endOfDay();
+
+        $byType = \App\Models\FinancialTransaction::selectRaw('type, SUM(amount) as total, COUNT(*) as count')
+            ->whereBetween('transacted_at', [$start, $end])
+            ->where('type', '!=', 'order')
+            ->groupBy('type')
+            ->get()
+            ->map(fn ($r) => [
+                'type'  => $r->type,
+                'total' => round((float) $r->total, 2),
+                'count' => (int) $r->count,
+            ])
+            ->values();
+
+        $byTender = \App\Models\FinancialTransaction::whereBetween('transacted_at', [$start, $end])
+            ->where('type', '!=', 'order')
+            ->with('tender')
+            ->selectRaw("payment_tender_id,
+                SUM(CASE WHEN type IN ('payment','income_adjustment') THEN amount ELSE 0 END) as total_in,
+                SUM(CASE WHEN type IN ('expense','payroll','asset_deduction','payout_share') THEN amount ELSE 0 END) as total_out,
+                COUNT(*) as cnt")
+            ->groupBy('payment_tender_id')
+            ->get()
+            ->map(fn ($r) => [
+                'tender'    => $r->payment_tender_id ? ($r->tender?->name ?? 'Unknown') : 'Untagged',
+                'total_in'  => round((float) $r->total_in,  2),
+                'total_out' => round((float) $r->total_out, 2),
+                'net'       => round((float) $r->total_in - (float) $r->total_out, 2),
+                'count'     => (int) $r->cnt,
+            ])
+            ->sortByDesc('total_in')
+            ->values();
+
+        return response()->json([
+            'period'    => ['start' => $start->toDateString(), 'end' => $end->toDateString()],
+            'by_type'   => $byType,
+            'by_tender' => $byTender,
+        ]);
+    }
+
+    public function heatmap(): JsonResponse
+    {
+        $this->checkPermission();
+
+        $dateFrom = request()->input('date_from');
+        $dateTo   = request()->input('date_to');
+
+        $query = \App\Models\Order::where('payment_status', 'paid');
+
+        if ($dateFrom) $query->whereDate('created_at', '>=', $dateFrom);
+        if ($dateTo)   $query->whereDate('created_at', '<=', $dateTo);
+
+        $rows = $query
+            ->selectRaw('DAYOFWEEK(created_at) as dow, HOUR(created_at) as hr, COUNT(*) as orders')
+            ->groupByRaw('DAYOFWEEK(created_at), HOUR(created_at)')
+            ->orderByRaw('DAYOFWEEK(created_at), HOUR(created_at)')
+            ->get();
+
+        $dowMap = [1 => 'Sunday', 2 => 'Monday', 3 => 'Tuesday',
+                   4 => 'Wednesday', 5 => 'Thursday', 6 => 'Friday', 7 => 'Saturday'];
+
+        $lookup = [];
+        foreach ($rows as $row) {
+            $day = $dowMap[$row->dow] ?? 'Unknown';
+            $lookup[$day][(int) $row->hr] = (int) $row->orders;
+        }
+
+        $orderedDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+        $data       = [];
+        $matrix     = [];
+        $dayTotals  = array_fill_keys($orderedDays, 0);
+        $hourTotals = array_fill(0, 24, 0);
+
+        foreach ($orderedDays as $day) {
+            $matrix[$day] = [];
+            for ($h = 0; $h < 24; $h++) {
+                $count = $lookup[$day][$h] ?? 0;
+                $data[]        = ['day' => $day, 'hour' => $h, 'orders' => $count];
+                $matrix[$day][$h] = $count;
+                $dayTotals[$day]  += $count;
+                $hourTotals[$h]   += $count;
+            }
+        }
+
+        $maxOrders = 0;
+        $peakSlot  = ['day' => null, 'hour' => 0, 'orders' => 0];
+        foreach ($data as $slot) {
+            if ($slot['orders'] > $maxOrders) {
+                $maxOrders = $slot['orders'];
+                $peakSlot  = $slot;
+            }
+        }
+
+        $peakHourIdx = (int) array_search(max($hourTotals), $hourTotals);
+        $peakDay     = (string) array_search(max($dayTotals), $dayTotals);
+
+        return response()->json([
+            'xAxis'  => 'hour',
+            'yAxis'  => 'day',
+            'data'   => $data,
+            'matrix' => $matrix,
+            'insights' => [
+                'total_orders' => array_sum($hourTotals),
+                'peak_slot'    => $peakSlot,
+                'peak_hour'    => ['hour' => $peakHourIdx, 'total_orders' => $hourTotals[$peakHourIdx]],
+                'peak_day'     => ['day'  => $peakDay,     'total_orders' => $dayTotals[$peakDay] ?? 0],
+                'hour_totals'  => array_values($hourTotals),
+                'day_totals'   => $dayTotals,
+            ],
+        ]);
     }
 
     private function checkPermission(): void
