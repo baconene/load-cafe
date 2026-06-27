@@ -32,7 +32,7 @@ const menuItems = [
 </script>
 
 <template>
-    <Head title="Load Cafe Menu" />
+    <Head title="The Boys — Grilled Burgers Menu" />
 
     <div class="min-h-screen bg-black text-white">
         <!-- Grill fire background effect -->

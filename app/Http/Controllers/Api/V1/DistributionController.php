@@ -15,18 +15,15 @@ class DistributionController extends Controller
 {
     public function __construct(private ProfitDistributionService $service) {}
 
-    /** Live preview — recomputed from existing sales/financial data. */
     public function preview(Request $request): JsonResponse
     {
         $this->adminOnly();
         [$basis, $start, $end, $cat, $prod, $sh] = $this->filters($request);
-
         return response()->json(
             $this->service->compute($basis, $start, $end, $cat, $prod, $sh)
         );
     }
 
-    /** Persist a historical snapshot. */
     public function storeSnapshot(Request $request): JsonResponse
     {
         $this->adminOnly();
@@ -48,22 +45,77 @@ class DistributionController extends Controller
     {
         $this->adminOnly();
         return response()->json(
-            DistributionSnapshot::with('creator:id,name')->orderByDesc('created_at')->limit(100)->get()
+            DistributionSnapshot::with(['creator:id,name', 'payer:id,name'])
+                ->orderByDesc('created_at')
+                ->limit(100)
+                ->get()
         );
     }
 
     public function showSnapshot(DistributionSnapshot $snapshot): JsonResponse
     {
         $this->adminOnly();
-        return response()->json($snapshot->load(['details', 'creator:id,name']));
+        return response()->json(
+            $snapshot->load(['details.shareholder', 'creator:id,name', 'payer:id,name', 'payoutTransactions.tender'])
+        );
     }
 
-    /** Monthly distribution trend. */
+    public function recordPayout(Request $request, DistributionSnapshot $snapshot): JsonResponse
+    {
+        $this->adminOnly();
+
+        if ($snapshot->isPaid()) {
+            return response()->json(['message' => 'This snapshot has already been paid out.'], 422);
+        }
+
+        $request->validate([
+            'tender_id' => 'required|exists:payment_tenders,id',
+            'notes'     => 'nullable|string|max:500',
+        ]);
+
+        $tenderId = (int) $request->input('tender_id');
+        $notes    = $request->input('notes');
+        $now      = now();
+
+        \DB::transaction(function () use ($snapshot, $tenderId, $notes, $now) {
+            $snapshot->load('details');
+
+            foreach ($snapshot->details as $detail) {
+                if ($detail->amount <= 0) continue;
+
+                \App\Models\FinancialTransaction::create([
+                    'type'                    => 'payout_share',
+                    'amount'                  => $detail->amount,
+                    'description'             => 'Profit Distribution Payout — ' . $detail->recipient_name
+                        . ' (' . $snapshot->period_start->toDateString() . ' to ' . $snapshot->period_end->toDateString() . ')',
+                    'payment_tender_id'       => $tenderId,
+                    'distribution_snapshot_id'=> $snapshot->id,
+                    'shareholder_id'          => $detail->shareholder_id,
+                    'user_id'                 => auth()->id(),
+                    'notes'                   => $notes,
+                    'transacted_at'           => $now,
+                ]);
+            }
+
+            $snapshot->update([
+                'paid_at' => $now,
+                'paid_by' => auth()->id(),
+            ]);
+        });
+
+        AuditLogger::record('distribution.payout', $snapshot, null, [
+            'snapshot_id' => $snapshot->id,
+            'tender_id'   => $tenderId,
+            'amount'      => $snapshot->members_amount + $snapshot->company_amount,
+        ], 'Recorded payout for distribution snapshot #' . $snapshot->id);
+
+        return response()->json($snapshot->fresh(['details', 'payer:id,name', 'payoutTransactions.tender']), 200);
+    }
+
     public function trend(Request $request): JsonResponse
     {
         $this->adminOnly();
         [$basis, $start, $end] = $this->filters($request);
-
         return response()->json($this->service->trend($basis, $start, $end));
     }
 

@@ -5,7 +5,7 @@ import { toast } from 'vue-sonner'
 import api from '@/utils/api'
 import {
     PieChart, Users, History, TrendingUp, RefreshCw, Plus, Trash2, Pencil,
-    Download, Save, X, HelpCircle, Gift, Package,
+    Download, Save, X, HelpCircle, Gift, Package, Banknote, CheckCircle2,
 } from 'lucide-vue-next'
 
 defineOptions({ layout: { breadcrumbs: [{ title: 'Dashboard', href: '/dashboard' }, { title: 'Profit Sharing', href: '/distribution' }] } })
@@ -16,7 +16,7 @@ const props = defineProps<{
     users: { id: number; name: string }[]
 }>()
 
-// ── Shared filters ──────────────────────────────────────────────────────────
+// ── Shared filters ────────────────────────────────────────────────────────
 const today = new Date().toISOString().split('T')[0]
 const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
 const basis = ref<'sales' | 'profit'>('sales')
@@ -293,6 +293,41 @@ const trendOptions = computed(() => ({
 const snapshots = ref<any[]>([])
 const loadSnapshots = async () => { snapshots.value = (await api.get('/api/v1/distribution/snapshots')).data }
 
+// ── Payout modal ──────────────────────────────────────────────────────────────
+const tenders = ref<{ id: number; name: string }[]>([])
+const loadTenders = async () => {
+    if (tenders.value.length) return
+    const res = await api.get('/api/v1/payment-tenders/all')
+    tenders.value = res.data
+}
+
+const payoutModal = ref<{ open: boolean; snapshot: any | null; tenderId: number | ''; notes: string; loading: boolean }>({
+    open: false, snapshot: null, tenderId: '', notes: '', loading: false,
+})
+
+const openPayoutModal = async (snapshot: any) => {
+    await loadTenders()
+    payoutModal.value = { open: true, snapshot, tenderId: '', notes: '', loading: false }
+}
+
+const submitPayout = async () => {
+    if (!payoutModal.value.tenderId) { toast.error('Please select a tender.'); return }
+    payoutModal.value.loading = true
+    try {
+        await api.post(`/api/v1/distribution/snapshots/${payoutModal.value.snapshot.id}/payout`, {
+            tender_id: payoutModal.value.tenderId,
+            notes: payoutModal.value.notes || null,
+        })
+        toast.success('Payout recorded successfully.')
+        payoutModal.value.open = false
+        loadSnapshots()
+    } catch (err: any) {
+        toast.error(err.response?.data?.message ?? 'Failed to record payout.')
+    } finally {
+        payoutModal.value.loading = false
+    }
+}
+
 // ── Tab activation ────────────────────────────────────────────────────────────
 watch(subTab, (t) => {
     if (t === 'shareholders') loadShareholders()
@@ -336,7 +371,7 @@ const tabs = [
             </button>
         </div>
 
-        <!-- ── DISTRIBUTION ─────────────────────────────────────────────── -->
+        <!-- ── DISTRIBUTION ───────────────────────────────────────────────── -->
         <template v-if="subTab === 'distribution'">
             <!-- Filters -->
             <div class="rounded-xl border bg-card shadow-sm p-4">
@@ -376,13 +411,41 @@ const tabs = [
                     <div class="flex items-center justify-between mb-3">
                         <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Financial Summary — {{ result.financial_summary.period_end }}</p>
                     </div>
-                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                        <div class="space-y-0.5"><p class="text-[10px] uppercase tracking-wide text-muted-foreground">Gross Sales</p><p class="text-base font-bold">{{ fmt(result.financial_summary.gross_sales) }}</p></div>
-                        <div class="space-y-0.5"><p class="text-[10px] uppercase tracking-wide text-muted-foreground">Refunds</p><p class="text-base font-bold text-red-500">−{{ fmt(result.financial_summary.refunds) }}</p></div>
-                        <div class="space-y-0.5"><p class="text-[10px] uppercase tracking-wide text-muted-foreground">Net Sales</p><p class="text-base font-bold text-blue-600">{{ fmt(result.financial_summary.net_sales) }}</p></div>
-                        <div class="space-y-0.5"><p class="text-[10px] uppercase tracking-wide text-muted-foreground">COGS</p><p class="text-base font-bold text-orange-500">−{{ fmt(result.financial_summary.cogs) }}</p></div>
-                        <div class="space-y-0.5"><p class="text-[10px] uppercase tracking-wide text-muted-foreground">Net Profit</p><p class="text-base font-bold" :class="result.financial_summary.net_profit >= 0 ? 'text-emerald-600' : 'text-red-500'">{{ fmt(result.financial_summary.net_profit) }}</p></div>
-                        <div class="space-y-0.5 border-l pl-3"><p class="text-[10px] uppercase tracking-wide text-muted-foreground">{{ result.basis === 'profit' ? 'Profit Margin' : 'Sales Base' }}</p><p class="text-base font-bold text-primary">{{ result.basis === 'profit' && result.financial_summary.gross_sales > 0 ? ((result.financial_summary.net_profit / result.financial_summary.gross_sales) * 100).toFixed(1) + '%' : fmt(result.financial_summary.sales_base) }}</p></div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                        <div class="space-y-0.5">
+                            <p class="text-[10px] uppercase tracking-wide text-muted-foreground">Gross Sales</p>
+                            <p class="text-base font-bold">{{ fmt(result.financial_summary.gross_sales) }}</p>
+                        </div>
+                        <div class="space-y-0.5">
+                            <p class="text-[10px] uppercase tracking-wide text-muted-foreground">Refunds</p>
+                            <p class="text-base font-bold text-red-500">−{{ fmt(result.financial_summary.refunds) }}</p>
+                        </div>
+                        <div class="space-y-0.5">
+                            <p class="text-[10px] uppercase tracking-wide text-muted-foreground">Net Sales</p>
+                            <p class="text-base font-bold text-blue-600">{{ fmt(result.financial_summary.net_sales) }}</p>
+                        </div>
+                        <div v-if="(result.financial_summary.income_adjustments ?? 0) !== 0" class="space-y-0.5" title="Manual 'Other Income' entries from the Financial module — added to net profit.">
+                            <p class="text-[10px] uppercase tracking-wide text-muted-foreground">Other Income</p>
+                            <p class="text-base font-bold text-teal-600">+{{ fmt(result.financial_summary.income_adjustments) }}</p>
+                        </div>
+                        <div v-if="(result.financial_summary.expenses ?? 0) !== 0" class="space-y-0.5" title="Operating expenses (incl. paid bills) from the Financial module — deducted from net profit.">
+                            <p class="text-[10px] uppercase tracking-wide text-muted-foreground">Expenses</p>
+                            <p class="text-base font-bold text-red-500">−{{ fmt(result.financial_summary.expenses) }}</p>
+                        </div>
+                        <div v-if="(result.financial_summary.payroll ?? 0) !== 0" class="space-y-0.5" title="Payroll disbursements — deducted from net profit.">
+                            <p class="text-[10px] uppercase tracking-wide text-muted-foreground">Payroll</p>
+                            <p class="text-base font-bold text-purple-600">−{{ fmt(result.financial_summary.payroll) }}</p>
+                        </div>
+                        <div class="space-y-0.5">
+                            <p class="text-[10px] uppercase tracking-wide text-muted-foreground" title="Cash basis: only paid bills and expenses are deducted — upcoming or unpaid bills are not reflected until paid. Includes manual Other Income / Expenses / Payroll.">
+                                Net Profit
+                            </p>
+                            <p class="text-base font-bold" :class="result.financial_summary.net_profit >= 0 ? 'text-emerald-600' : 'text-red-500'">{{ fmt(result.financial_summary.net_profit) }}</p>
+                        </div>
+                        <div class="space-y-0.5 border-l pl-3">
+                            <p class="text-[10px] uppercase tracking-wide text-muted-foreground">{{ result.basis === 'profit' ? 'Profit Margin' : 'Sales Basis' }}</p>
+                            <p class="text-base font-bold text-primary">{{ result.basis === 'profit' ? (result.financial_summary.gross_sales > 0 ? ((result.financial_summary.net_profit / result.financial_summary.gross_sales) * 100).toFixed(1) + '%' : '—') : fmt(result.financial_summary.sales_base) }}</p>
+                        </div>
                     </div>
                 </div>
 
@@ -581,7 +644,7 @@ const tabs = [
             </template>
         </template>
 
-        <!-- ── SHAREHOLDERS ─────────────────────────────────────────────── -->
+        <!-- ── SHAREHOLDERS ───────────────────────────────────────────────── -->
         <template v-if="subTab === 'shareholders'">
             <div class="rounded-xl border bg-card shadow-sm p-4">
                 <div class="flex items-center justify-between mb-3">
@@ -828,7 +891,7 @@ const tabs = [
             </div>
         </template>
 
-        <!-- ── TRENDS ───────────────────────────────────────────────────── -->
+        <!-- ── TRENDS ───────────────────────────────────────────────────────── -->
         <template v-if="subTab === 'trends'">
             <div class="rounded-xl border bg-card shadow-sm p-4">
                 <h3 class="font-bold text-sm mb-2 flex items-center gap-2"><TrendingUp class="h-4 w-4 text-primary" /> Monthly Distribution Trend (this year)</h3>
@@ -837,10 +900,12 @@ const tabs = [
             </div>
         </template>
 
-        <!-- ── HISTORY ──────────────────────────────────────────────────── -->
+        <!-- ── HISTORY ──────────────────────────────────────────────────────── -->
         <template v-if="subTab === 'history'">
             <div class="rounded-xl border bg-card shadow-sm overflow-hidden">
                 <div class="p-4 border-b"><h3 class="font-bold text-sm">Distribution Snapshots</h3></div>
+
+                <!-- Mobile cards -->
                 <div class="sm:hidden divide-y">
                     <div v-for="s in snapshots" :key="s.id" class="p-3 space-y-1.5">
                         <div class="flex justify-between items-center">
@@ -851,11 +916,31 @@ const tabs = [
                         <div class="flex justify-between text-xs"><span class="text-muted-foreground">Members</span><span>{{ fmt(s.members_amount) }}</span></div>
                         <div class="flex justify-between text-xs"><span class="text-muted-foreground">Company</span><span class="text-emerald-600 font-medium">{{ fmt(s.company_amount) }}</span></div>
                         <div class="text-xs text-muted-foreground">By: {{ s.creator?.name ?? '—' }}</div>
+                        <!-- Payout status -->
+                        <div v-if="s.paid_at" class="flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                            <CheckCircle2 class="h-3 w-3" /> Paid {{ s.paid_at?.slice(0,10) }} by {{ s.payer?.name ?? '—' }}
+                        </div>
+                        <button v-else @click="openPayoutModal(s)"
+                            class="flex items-center gap-1.5 text-xs font-semibold text-primary border border-primary/40 rounded-lg px-2.5 py-1 hover:bg-primary/5 transition-colors">
+                            <Banknote class="h-3 w-3" /> Record Payout
+                        </button>
                     </div>
                     <div v-if="!snapshots.length" class="px-4 py-8 text-center text-muted-foreground text-sm">No snapshots saved yet.</div>
                 </div>
+
+                <!-- Desktop table -->
                 <table class="hidden sm:table w-full text-sm">
-                    <thead class="bg-muted/50 text-muted-foreground text-xs uppercase"><tr><th class="px-4 py-2 text-left">Period</th><th class="px-4 py-2 text-left">Basis</th><th class="px-4 py-2 text-right">Distributable</th><th class="px-4 py-2 text-right">Members</th><th class="px-4 py-2 text-right">Company</th><th class="px-4 py-2 text-left">By</th></tr></thead>
+                    <thead class="bg-muted/50 text-muted-foreground text-xs uppercase">
+                        <tr>
+                            <th class="px-4 py-2 text-left">Period</th>
+                            <th class="px-4 py-2 text-left">Basis</th>
+                            <th class="px-4 py-2 text-right">Distributable</th>
+                            <th class="px-4 py-2 text-right">Members</th>
+                            <th class="px-4 py-2 text-right">Company</th>
+                            <th class="px-4 py-2 text-left">By</th>
+                            <th class="px-4 py-2 text-left">Payout</th>
+                        </tr>
+                    </thead>
                     <tbody class="divide-y">
                         <tr v-for="s in snapshots" :key="s.id" class="hover:bg-muted/20">
                             <td class="px-4 py-2 whitespace-nowrap">{{ s.period_start?.slice(0,10) }} → {{ s.period_end?.slice(0,10) }}</td>
@@ -864,14 +949,84 @@ const tabs = [
                             <td class="px-4 py-2 text-right">{{ fmt(s.members_amount) }}</td>
                             <td class="px-4 py-2 text-right text-emerald-600">{{ fmt(s.company_amount) }}</td>
                             <td class="px-4 py-2 text-xs text-muted-foreground">{{ s.creator?.name ?? '—' }}</td>
+                            <td class="px-4 py-2">
+                                <div v-if="s.paid_at" class="flex items-center gap-1 text-xs text-emerald-600 font-medium whitespace-nowrap">
+                                    <CheckCircle2 class="h-3.5 w-3.5 shrink-0" />
+                                    {{ s.paid_at?.slice(0,10) }} · {{ s.payer?.name ?? '—' }}
+                                </div>
+                                <button v-else @click="openPayoutModal(s)"
+                                    class="flex items-center gap-1 text-xs font-semibold text-primary border border-primary/40 rounded-lg px-2.5 py-1 hover:bg-primary/5 transition-colors whitespace-nowrap">
+                                    <Banknote class="h-3 w-3" /> Record Payout
+                                </button>
+                            </td>
                         </tr>
-                        <tr v-if="!snapshots.length"><td colspan="6" class="px-4 py-8 text-center text-muted-foreground">No snapshots saved yet.</td></tr>
+                        <tr v-if="!snapshots.length"><td colspan="7" class="px-4 py-8 text-center text-muted-foreground">No snapshots saved yet.</td></tr>
                     </tbody>
                 </table>
             </div>
         </template>
 
-        <!-- ── HELP ─────────────────────────────────────────────────────── -->
+        <!-- ── PAYOUT MODAL ───────────────────────────────────────────────────── -->
+        <div v-if="payoutModal.open" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="payoutModal.open = false">
+            <div class="w-full max-w-md rounded-2xl bg-background shadow-2xl p-6 space-y-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-bold text-base flex items-center gap-2"><Banknote class="h-4 w-4 text-primary" /> Record Payout</h2>
+                    <button @click="payoutModal.open = false" class="text-muted-foreground hover:text-foreground"><X class="h-4 w-4" /></button>
+                </div>
+
+                <!-- Snapshot summary -->
+                <div class="rounded-xl bg-muted/40 p-3 space-y-2 text-sm">
+                    <div class="flex justify-between"><span class="text-muted-foreground">Period</span><span class="font-medium">{{ payoutModal.snapshot?.period_start?.slice(0,10) }} → {{ payoutModal.snapshot?.period_end?.slice(0,10) }}</span></div>
+                    <div class="border-t pt-2 space-y-1.5">
+                        <div class="flex justify-between items-start">
+                            <span class="text-muted-foreground">Members (to be disbursed)</span>
+                            <span class="font-bold text-primary">{{ fmt(payoutModal.snapshot?.members_amount) }}</span>
+                        </div>
+                        <p class="text-xs text-muted-foreground">One cash transaction per shareholder will be recorded.</p>
+                    </div>
+                    <div class="border-t pt-2 space-y-1.5">
+                        <div class="flex justify-between items-start">
+                            <span class="text-muted-foreground">Company (retained in business)</span>
+                            <span class="font-medium text-emerald-600">{{ fmt(payoutModal.snapshot?.company_amount) }}</span>
+                        </div>
+                        <p class="text-xs text-muted-foreground">No cash disbursed — stays as retained earnings.</p>
+                    </div>
+                </div>
+
+                <!-- Tender select -->
+                <div>
+                    <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Payout Tender / Method</label>
+                    <select v-model="payoutModal.tenderId"
+                        class="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="" disabled>Select tender…</option>
+                        <option v-for="t in tenders" :key="t.id" :value="t.id">{{ t.name }}</option>
+                    </select>
+                </div>
+
+                <!-- Notes -->
+                <div>
+                    <label class="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">Notes <span class="font-normal">(optional)</span></label>
+                    <textarea v-model="payoutModal.notes" rows="2"
+                        placeholder="e.g. Cash payout during partner meeting"
+                        class="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                    <button @click="payoutModal.open = false"
+                        class="flex-1 rounded-lg border px-4 py-2 text-sm font-semibold hover:bg-muted transition-colors">
+                        Cancel
+                    </button>
+                    <button @click="submitPayout" :disabled="payoutModal.loading || !payoutModal.tenderId"
+                        class="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                        <RefreshCw v-if="payoutModal.loading" class="h-3.5 w-3.5 animate-spin" />
+                        <Banknote v-else class="h-3.5 w-3.5" />
+                        Disburse to Members
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── HELP ───────────────────────────────────────────────────────────── -->
         <template v-if="subTab === 'help'">
             <div class="grid lg:grid-cols-2 gap-4">
                 <div class="rounded-xl border bg-card shadow-sm p-5 space-y-3 lg:col-span-2">
