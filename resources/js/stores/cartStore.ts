@@ -4,7 +4,7 @@ import { ref, computed } from 'vue'
 export const useCartStore = defineStore('cart', () => {
     const items = ref<any[]>([])
     const discount = ref(0)
-    const orderType = ref('')
+    const orderType = ref('dine_in')
     const tableNumber = ref<string | null>(null)
     const customerName = ref('')
     const customerContact = ref('')
@@ -45,7 +45,7 @@ export const useCartStore = defineStore('cart', () => {
     const clear = () => {
         items.value = []
         discount.value = 0
-        orderType.value = ''
+        orderType.value = 'dine_in'
         tableNumber.value = null
         customerName.value = ''
         customerContact.value = ''
