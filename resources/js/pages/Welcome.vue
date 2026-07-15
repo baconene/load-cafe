@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, usePage } from '@inertiajs/vue3'
 import { dashboard } from '@/routes'
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { Search, X, ChevronRight, Menu as MenuIcon, ArrowLeft, Leaf, Sparkles, Thermometer, Heart } from 'lucide-vue-next'
@@ -17,7 +17,7 @@ const categories = computed<Category[]>(() => (page.props as any).categories ?? 
 
 interface Product {
     id: number; name: string; description: string | null
-    price: number; image: string | null; categoryName?: string
+    price: number; image: string | null; category?: { name: string }
 }
 interface Category { name: string; products: Product[] }
 
@@ -37,51 +37,44 @@ const features = [
     { icon: Heart,       title: 'Made with Love',     body: 'Passion poured into every cup, every day.' },
 ]
 
-// ── Search ────────────────────────────────────────────────────────────────────
-const searchQuery = ref('')
-const searchMode  = computed(() => searchQuery.value.trim().length > 0)
+// ── Search & filter ───────────────────────────────────────────────────────────
+const searchQuery    = ref('')
+const activeCategory = ref<string | null>(null)
 
-const searchResults = computed(() => {
+const filteredCategories = computed(() => {
     const q = searchQuery.value.trim().toLowerCase()
-    return categories.value.flatMap(c =>
-        c.products
-            .filter(p =>
-                p.name.toLowerCase().includes(q) ||
-                (p.description ?? '').toLowerCase().includes(q)
-            )
-            .map(p => ({ ...p, categoryName: c.name }))
-    )
+    return categories.value
+        .filter(c => !activeCategory.value || c.name === activeCategory.value)
+        .map(c => ({
+            ...c,
+            products: q
+                ? c.products.filter(p =>
+                    p.name.toLowerCase().includes(q) ||
+                    (p.description ?? '').toLowerCase().includes(q))
+                : c.products,
+        }))
+        .filter(c => c.products.length > 0)
 })
 
-// ── Swipeable pages ───────────────────────────────────────────────────────────
-const activePage = ref(0)
-let touchStartX  = 0
-let touchStartY  = 0
+const totalFiltered = computed(() =>
+    filteredCategories.value.reduce((n, c) => n + c.products.length, 0)
+)
 
-function goToCategory(index: number) {
-    searchQuery.value = ''
-    activePage.value  = index
-}
-
-function onTouchStart(e: TouchEvent) {
-    touchStartX = e.touches[0].clientX
-    touchStartY = e.touches[0].clientY
-}
-
-function onTouchEnd(e: TouchEvent) {
-    const dx = e.changedTouches[0].clientX - touchStartX
-    const dy = e.changedTouches[0].clientY - touchStartY
-    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
-        if (dx < 0 && activePage.value < categories.value.length - 1) activePage.value++
-        else if (dx > 0 && activePage.value > 0) activePage.value--
+function setCategory(name: string | null) {
+    activeCategory.value = name
+    searchQuery.value    = ''
+    if (name) {
+        nextTick(() => {
+            document.getElementById(`cat-${name}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        })
     }
 }
 
-// ── Product sheet ─────────────────────────────────────────────────────────────
-const selectedProduct = ref<Product | null>(null)
+// ── Product detail sheet ──────────────────────────────────────────────────────
+const selectedProduct = ref<Product & { category: { name: string } } | null>(null)
 const sheetOpen       = ref(false)
 
-function openProduct(p: Product) {
+function openProduct(p: Product & { category: { name: string } }) {
     selectedProduct.value        = p
     sheetOpen.value              = true
     document.body.style.overflow = 'hidden'
@@ -232,8 +225,7 @@ onUnmounted(() => {
                             style="background:radial-gradient(135deg at 30% 30%,#1a1a1a 0%,#080808 60%);border:1px solid rgba(255,255,255,0.12)">
                             <img v-if="logoUrl" :src="logoUrl"
                                 class="w-24 lg:w-32 h-24 lg:h-32 object-contain rounded-full" alt="" />
-                            <span v-else
-                                class="font-black text-white/20 tracking-widest select-none text-5xl lg:text-6xl">
+                            <span v-else class="font-black text-white/20 tracking-widest select-none text-5xl lg:text-6xl">
                                 {{ brandInitials }}
                             </span>
                         </div>
@@ -269,20 +261,30 @@ onUnmounted(() => {
                                 <X class="h-3.5 w-3.5" />
                             </button>
                         </div>
-                        <span v-if="searchMode" class="text-xs text-white/35 shrink-0">
-                            {{ searchResults.length }} result{{ searchResults.length !== 1 ? 's' : '' }}
+                        <span v-if="searchQuery" class="text-xs text-white/35 shrink-0">
+                            {{ totalFiltered }} result{{ totalFiltered !== 1 ? 's' : '' }}
                         </span>
                     </div>
 
                     <!-- Category tabs -->
                     <div v-if="categories.length" class="flex gap-2 overflow-x-auto pb-3 scrollbar-hide -mx-1 px-1">
                         <button
-                            v-for="(cat, i) in categories"
-                            :key="cat.name"
-                            @click="goToCategory(i)"
+                            @click="setCategory(null)"
                             :class="[
                                 'shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-200',
-                                !searchMode && activePage === i
+                                activeCategory === null
+                                    ? 'bg-white text-black'
+                                    : 'border border-white/15 text-white/50 hover:text-white hover:border-white/30',
+                            ]">
+                            All
+                        </button>
+                        <button
+                            v-for="cat in categories"
+                            :key="cat.name"
+                            @click="setCategory(cat.name)"
+                            :class="[
+                                'shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-200',
+                                activeCategory === cat.name
                                     ? 'bg-white text-black'
                                     : 'border border-white/15 text-white/50 hover:text-white hover:border-white/30',
                             ]">
@@ -292,109 +294,55 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <!-- Swipeable pages -->
-            <div v-if="!searchMode" class="overflow-hidden">
-                <div
-                    class="flex"
-                    :style="{
-                        transform: `translateX(-${activePage * 100}%)`,
-                        transition: 'transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-                    }"
-                    @touchstart.passive="onTouchStart"
-                    @touchend.passive="onTouchEnd"
-                >
-                    <div v-for="cat in categories" :key="cat.name" class="flex-none w-full">
-                        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
-                            <div class="flex items-center gap-3">
-                                <h2 class="text-lg font-black text-white">{{ cat.name }}</h2>
-                                <span class="text-xs text-white/30 font-semibold">{{ cat.products.length }}</span>
-                                <div class="flex-1 h-px bg-white/8"></div>
-                            </div>
+            <!-- Products list -->
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
 
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                <button
-                                    v-for="product in cat.products"
-                                    :key="product.id"
-                                    @click="openProduct({ ...product, categoryName: cat.name })"
-                                    class="group text-left flex items-center gap-3 rounded-xl border border-white/8 px-4 py-3.5 hover:border-white/25 hover:bg-white/4 active:scale-[0.98] transition-all duration-200 cursor-pointer"
-                                >
-                                    <div class="shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden border border-white/8 group-hover:border-white/15 transition-colors"
-                                        style="background:rgba(255,255,255,0.04)">
-                                        <img v-if="product.image" :src="product.image" :alt="product.name" class="w-full h-full object-cover" />
-                                        <div v-else class="w-full h-full flex items-center justify-center">
-                                            <span class="text-lg font-black text-white/20">{{ product.name[0] }}</span>
-                                        </div>
-                                    </div>
-                                    <div class="flex-1 min-w-0">
-                                        <p class="font-semibold text-sm text-white leading-snug truncate">{{ product.name }}</p>
-                                        <p v-if="product.description"
-                                            class="text-xs text-white/38 leading-relaxed line-clamp-1 mt-0.5">
-                                            {{ product.description }}
-                                        </p>
-                                        <p class="text-sm font-black text-white mt-1.5">{{ formatPrice(product.price) }}</p>
-                                    </div>
-                                    <ChevronRight class="h-4 w-4 text-white/20 shrink-0 group-hover:text-white/50 transition-colors" />
-                                </button>
-                            </div>
-
-                            <div v-if="cat.products.length === 0" class="py-12 text-center">
-                                <p class="text-white/30 text-sm">No items in this category.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Pagination dots -->
-                <div v-if="categories.length > 1" class="flex justify-center gap-1.5 py-5">
-                    <button
-                        v-for="(cat, i) in categories"
-                        :key="i"
-                        @click="goToCategory(i)"
-                        :aria-label="cat.name"
-                        :class="activePage === i ? 'w-5 bg-white' : 'w-1.5 bg-white/25'"
-                        class="h-1.5 rounded-full transition-all duration-300"
-                    />
-                </div>
-
-                <div v-if="categories.length === 0" class="text-center py-20">
-                    <p class="text-white/30 text-sm">No menu items available.</p>
-                </div>
-            </div>
-
-            <!-- Search results -->
-            <div v-else class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                <div v-if="searchResults.length === 0" class="text-center py-20">
+                <div v-if="filteredCategories.length === 0" class="text-center py-20">
                     <p class="text-white/40 text-sm">No items match "{{ searchQuery }}"</p>
                     <button @click="searchQuery=''"
                         class="mt-4 text-xs text-white/50 underline hover:text-white/80 transition-colors">
                         Clear search
                     </button>
                 </div>
-                <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <button
-                        v-for="product in searchResults"
-                        :key="product.id"
-                        @click="openProduct(product)"
-                        class="group text-left flex items-center gap-3 rounded-xl border border-white/8 px-4 py-3.5 hover:border-white/25 hover:bg-white/4 active:scale-[0.98] transition-all duration-200 cursor-pointer"
-                    >
-                        <div class="shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden border border-white/8 group-hover:border-white/15 transition-colors"
-                            style="background:rgba(255,255,255,0.04)">
-                            <img v-if="product.image" :src="product.image" :alt="product.name" class="w-full h-full object-cover" />
-                            <div v-else class="w-full h-full flex items-center justify-center">
-                                <span class="text-lg font-black text-white/20">{{ product.name[0] }}</span>
-                            </div>
+
+                <template v-else>
+                    <div v-for="cat in filteredCategories" :key="cat.name" :id="`cat-${cat.name}`">
+                        <div class="flex items-center gap-3 mb-4 reveal-up">
+                            <h2 class="text-lg font-black text-white">{{ cat.name }}</h2>
+                            <span class="text-xs text-white/30 font-semibold">{{ cat.products.length }}</span>
+                            <div class="flex-1 h-px bg-white/8"></div>
                         </div>
-                        <div class="flex-1 min-w-0">
-                            <p class="font-semibold text-sm text-white leading-snug truncate">{{ product.name }}</p>
-                            <p v-if="product.description"
-                                class="text-xs text-white/38 leading-relaxed line-clamp-1 mt-0.5">
-                                {{ product.description }}
-                            </p>
-                            <p class="text-sm font-black text-white mt-1.5">{{ formatPrice(product.price) }}</p>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            <button
+                                v-for="product in cat.products"
+                                :key="product.id"
+                                @click="openProduct({ ...product, category: { name: cat.name } })"
+                                class="group text-left flex items-center gap-3 rounded-xl border border-white/8 px-4 py-3.5 hover:border-white/25 hover:bg-white/4 active:scale-[0.98] transition-all duration-200 cursor-pointer"
+                            >
+                                <div class="shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden border border-white/8 group-hover:border-white/15 transition-colors"
+                                    style="background:rgba(255,255,255,0.04)">
+                                    <img v-if="product.image" :src="product.image" :alt="product.name"
+                                        class="w-full h-full object-cover" />
+                                    <div v-else class="w-full h-full flex items-center justify-center">
+                                        <span class="text-lg font-black text-white/20">{{ product.name[0] }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-semibold text-sm text-white leading-snug truncate">{{ product.name }}</p>
+                                    <p v-if="product.description"
+                                        class="text-xs text-white/38 leading-relaxed line-clamp-1 mt-0.5">
+                                        {{ product.description }}
+                                    </p>
+                                    <p class="text-sm font-black text-white mt-1.5">{{ formatPrice(product.price) }}</p>
+                                </div>
+
+                                <ChevronRight class="h-4 w-4 text-white/20 shrink-0 group-hover:text-white/50 transition-colors" />
+                            </button>
                         </div>
-                        <ChevronRight class="h-4 w-4 text-white/20 shrink-0 group-hover:text-white/50 transition-colors" />
-                    </button>
-                </div>
+                    </div>
+                </template>
             </div>
         </section>
 
@@ -491,9 +439,9 @@ onUnmounted(() => {
                             <span class="md:hidden">Back</span>
                             <span class="hidden md:inline">Close</span>
                         </button>
-                        <span v-if="selectedProduct.categoryName"
+                        <span v-if="selectedProduct.category"
                             class="text-[10px] font-bold uppercase tracking-widest text-white/35 border border-white/10 rounded-full px-2.5 py-0.5 bg-white/5">
-                            {{ selectedProduct.categoryName }}
+                            {{ selectedProduct.category.name }}
                         </span>
                     </div>
 
@@ -506,7 +454,7 @@ onUnmounted(() => {
                                 class="w-full h-full object-cover" />
                             <span v-else
                                 class="font-black text-white/10 select-none"
-                                style="font-size: clamp(5rem, 20vw, 8rem)">
+                                style="font-size:clamp(5rem,20vw,8rem)">
                                 {{ selectedProduct.name[0] }}
                             </span>
                         </div>
