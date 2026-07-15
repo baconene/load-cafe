@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { Head, Link, usePage } from '@inertiajs/vue3'
 import { dashboard } from '@/routes'
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { Search, X, ChevronRight, Menu as MenuIcon, ArrowLeft, Leaf, Sparkles, Thermometer, Heart } from 'lucide-vue-next'
+import { Search, X, ChevronRight, ChevronLeft, Menu as MenuIcon, ArrowLeft, Leaf, Sparkles, Thermometer, Heart } from 'lucide-vue-next'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -67,6 +67,50 @@ function setCategory(name: string | null) {
         nextTick(() => {
             document.getElementById(`cat-${name}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
         })
+    }
+}
+
+// ── Per-category pagination ───────────────────────────────────────────────────
+const PAGE_SIZE    = 5
+const catPages     = ref<Record<string, number>>({})
+
+watch([searchQuery, activeCategory], () => { catPages.value = {} })
+
+function getPage(name: string)                     { return catPages.value[name] ?? 0 }
+function pageCount(products: Product[])            { return Math.ceil(products.length / PAGE_SIZE) }
+function pagedProducts(name: string, products: Product[]) {
+    const p = getPage(name)
+    return products.slice(p * PAGE_SIZE, (p + 1) * PAGE_SIZE)
+}
+function goPage(name: string, page: number)        { catPages.value = { ...catPages.value, [name]: page } }
+function prevPage(name: string, products: Product[]) {
+    const p = getPage(name)
+    if (p > 0) goPage(name, p - 1)
+}
+function nextPage(name: string, products: Product[]) {
+    const p = getPage(name)
+    if (p < pageCount(products) - 1) goPage(name, p + 1)
+}
+
+// swipe gesture per category
+let swipeCatName: string       = ''
+let swipeCatProducts: Product[] = []
+let swipeTouchStartX = 0
+let swipeTouchStartY = 0
+
+function onCatTouchStart(e: TouchEvent, name: string, products: Product[]) {
+    swipeCatName     = name
+    swipeCatProducts = products
+    swipeTouchStartX = e.touches[0].clientX
+    swipeTouchStartY = e.touches[0].clientY
+}
+
+function onCatTouchEnd(e: TouchEvent) {
+    const dx = e.changedTouches[0].clientX - swipeTouchStartX
+    const dy = e.changedTouches[0].clientY - swipeTouchStartY
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+        if (dx < 0) nextPage(swipeCatName, swipeCatProducts)
+        else prevPage(swipeCatName, swipeCatProducts)
     }
 }
 
@@ -266,7 +310,6 @@ onUnmounted(() => {
                         </span>
                     </div>
 
-                    <!-- Category tabs -->
                     <div v-if="categories.length" class="flex gap-2 overflow-x-auto pb-3 scrollbar-hide -mx-1 px-1">
                         <button
                             @click="setCategory(null)"
@@ -294,7 +337,7 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <!-- Products list -->
+            <!-- Products -->
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
 
                 <div v-if="filteredCategories.length === 0" class="text-center py-20">
@@ -307,40 +350,77 @@ onUnmounted(() => {
 
                 <template v-else>
                     <div v-for="cat in filteredCategories" :key="cat.name" :id="`cat-${cat.name}`">
+
+                        <!-- Category heading -->
                         <div class="flex items-center gap-3 mb-4 reveal-up">
                             <h2 class="text-lg font-black text-white">{{ cat.name }}</h2>
                             <span class="text-xs text-white/30 font-semibold">{{ cat.products.length }}</span>
                             <div class="flex-1 h-px bg-white/8"></div>
                         </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            <button
-                                v-for="product in cat.products"
-                                :key="product.id"
-                                @click="openProduct({ ...product, category: { name: cat.name } })"
-                                class="group text-left flex items-center gap-3 rounded-xl border border-white/8 px-4 py-3.5 hover:border-white/25 hover:bg-white/4 active:scale-[0.98] transition-all duration-200 cursor-pointer"
-                            >
-                                <div class="shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden border border-white/8 group-hover:border-white/15 transition-colors"
-                                    style="background:rgba(255,255,255,0.04)">
-                                    <img v-if="product.image" :src="product.image" :alt="product.name"
-                                        class="w-full h-full object-cover" />
-                                    <div v-else class="w-full h-full flex items-center justify-center">
-                                        <span class="text-lg font-black text-white/20">{{ product.name[0] }}</span>
+                        <!-- Product list (5 per page) with swipe gesture -->
+                        <div
+                            @touchstart.passive="onCatTouchStart($event, cat.name, cat.products)"
+                            @touchend.passive="onCatTouchEnd($event)"
+                        >
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                <button
+                                    v-for="product in pagedProducts(cat.name, cat.products)"
+                                    :key="product.id"
+                                    @click="openProduct({ ...product, category: { name: cat.name } })"
+                                    class="group text-left flex items-center gap-3 rounded-xl border border-white/8 px-4 py-3.5 hover:border-white/25 hover:bg-white/4 active:scale-[0.98] transition-all duration-200 cursor-pointer"
+                                >
+                                    <div class="shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden border border-white/8 group-hover:border-white/15 transition-colors"
+                                        style="background:rgba(255,255,255,0.04)">
+                                        <img v-if="product.image" :src="product.image" :alt="product.name"
+                                            class="w-full h-full object-cover" />
+                                        <div v-else class="w-full h-full flex items-center justify-center">
+                                            <span class="text-lg font-black text-white/20">{{ product.name[0] }}</span>
+                                        </div>
                                     </div>
-                                </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="font-semibold text-sm text-white leading-snug truncate">{{ product.name }}</p>
+                                        <p v-if="product.description"
+                                            class="text-xs text-white/38 leading-relaxed line-clamp-1 mt-0.5">
+                                            {{ product.description }}
+                                        </p>
+                                        <p class="text-sm font-black text-white mt-1.5">{{ formatPrice(product.price) }}</p>
+                                    </div>
+                                    <ChevronRight class="h-4 w-4 text-white/20 shrink-0 group-hover:text-white/50 transition-colors" />
+                                </button>
+                            </div>
+                        </div>
 
-                                <div class="flex-1 min-w-0">
-                                    <p class="font-semibold text-sm text-white leading-snug truncate">{{ product.name }}</p>
-                                    <p v-if="product.description"
-                                        class="text-xs text-white/38 leading-relaxed line-clamp-1 mt-0.5">
-                                        {{ product.description }}
-                                    </p>
-                                    <p class="text-sm font-black text-white mt-1.5">{{ formatPrice(product.price) }}</p>
-                                </div>
+                        <!-- Pagination -->
+                        <div v-if="pageCount(cat.products) > 1"
+                            class="flex items-center justify-center gap-3 mt-5">
+                            <button
+                                @click="prevPage(cat.name, cat.products)"
+                                :disabled="getPage(cat.name) === 0"
+                                class="flex items-center justify-center h-7 w-7 rounded-full border border-white/15 text-white/40 hover:text-white hover:border-white/30 disabled:opacity-20 disabled:cursor-not-allowed transition-all">
+                                <ChevronLeft class="h-3.5 w-3.5" />
+                            </button>
 
-                                <ChevronRight class="h-4 w-4 text-white/20 shrink-0 group-hover:text-white/50 transition-colors" />
+                            <!-- Dots (scrollable if many pages) -->
+                            <div class="flex gap-1.5 overflow-x-auto scrollbar-hide" style="max-width:140px">
+                                <button
+                                    v-for="(_, i) in pageCount(cat.products)"
+                                    :key="i"
+                                    @click="goPage(cat.name, i)"
+                                    :aria-label="`Page ${i + 1}`"
+                                    :class="getPage(cat.name) === i ? 'w-4 bg-white' : 'w-1.5 bg-white/25 hover:bg-white/50'"
+                                    class="h-1.5 shrink-0 rounded-full transition-all duration-300"
+                                />
+                            </div>
+
+                            <button
+                                @click="nextPage(cat.name, cat.products)"
+                                :disabled="getPage(cat.name) >= pageCount(cat.products) - 1"
+                                class="flex items-center justify-center h-7 w-7 rounded-full border border-white/15 text-white/40 hover:text-white hover:border-white/30 disabled:opacity-20 disabled:cursor-not-allowed transition-all">
+                                <ChevronRight class="h-3.5 w-3.5" />
                             </button>
                         </div>
+
                     </div>
                 </template>
             </div>
