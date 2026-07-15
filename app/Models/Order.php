@@ -37,7 +37,7 @@ class Order extends Model
     {
         static::creating(function (Order $order) {
             if (empty($order->public_token)) {
-                $order->public_token = \Illuminate\Support\Str::random(32);
+                $order->public_token = bin2hex(random_bytes(16));
             }
         });
     }
