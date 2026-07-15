@@ -171,14 +171,6 @@ const queueOrderOffline = async (payload: Record<string, unknown>): Promise<bool
 
 const submitOrder = async () => {
     if (cartStore.items.length === 0) return
-    if (!cartStore.orderType) {
-        toast.error('Please select an order type.')
-        return
-    }
-    if (!cartStore.customerName.trim()) {
-        toast.error('Customer name is required.')
-        return
-    }
     submitting.value = true
     try {
         const itemsPayload = cartStore.items.map((item) => ({

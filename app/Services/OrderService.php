@@ -22,7 +22,7 @@ class OrderService
         return DB::transaction(function () use ($data) {
             $order = Order::create([
                 'user_id' => auth()->id(),
-                'order_type' => $data['order_type'],
+                'order_type' => $data['order_type'] ?? 'dine_in',
                 'table_number' => $data['table_number'] ?? null,
                 'customer_name' => $data['customer_name'] ?? null,
                 'customer_contact' => $data['customer_contact'] ?? null,

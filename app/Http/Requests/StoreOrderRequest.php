@@ -11,10 +11,17 @@ class StoreOrderRequest extends FormRequest
         return auth()->check();
     }
 
+    protected function prepareForValidation(): void
+    {
+        if (empty($this->order_type)) {
+            $this->merge(['order_type' => 'dine_in']);
+        }
+    }
+
     public function rules(): array
     {
         return [
-            'order_type' => 'required|in:dine_in,takeout,delivery',
+            'order_type' => 'nullable|in:dine_in,takeout,delivery',
             'table_number' => 'nullable|string',
             'customer_name' => 'nullable|string|max:100',
             'customer_contact' => 'nullable|string|max:50',
