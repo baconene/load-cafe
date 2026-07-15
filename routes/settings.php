@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Settings\AdvertisementController;
+use App\Http\Controllers\Settings\PublicLinkController;
 use App\Http\Controllers\Settings\LogoController;
 use App\Http\Controllers\Settings\MediaController;
 use App\Http\Controllers\Settings\PageContentController;
@@ -66,6 +67,10 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('role:admin');
 
     // System (admin only)
+    Route::get('settings/public-link', [PublicLinkController::class, 'edit'])
+        ->name('settings.public-link')
+        ->middleware('role:admin');
+
     Route::get('settings/system', [SystemController::class, 'index'])
         ->name('settings.system')
         ->middleware('role:admin');
