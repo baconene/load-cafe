@@ -14,7 +14,33 @@ Route::middleware('auth')->get('/user', function (Request $request) {
     return $request->user();
 });
 
+Route::prefix('v1/mobile-pos')->group(function () {
+    Route::post('/login', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'login']);
+    Route::get('/bootstrap', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'bootstrap']);
+    Route::post('/sync', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'sync']);
+    Route::post('/payments', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'paymentStore']);
+    Route::get('/orders', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'orderIndex']);
+    Route::post('/orders/reconcile', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'orderReconcile']);
+    Route::put('/orders/{id}', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'orderUpdate']);
+    Route::post('/orders/{id}/cancel', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'orderCancel']);
+    Route::get('/user', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'userInfo']);
+    Route::get('/deposit-controls', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'depositIndex']);
+    Route::post('/deposit-controls', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'depositStore']);
+    Route::post('/deposit-controls/{id}/close', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'depositClose']);
+    Route::post('/deposit-controls/{id}/reconcile', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'depositReconcile']);
+    Route::get('/inventory', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'inventoryIndex']);
+    Route::post('/inventory/adjust', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'inventoryAdjust']);
+    Route::get('/financial-transactions', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'financialIndex']);
+    Route::get('/financial-summary', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'financialSummary']);
+    Route::get('/financial-daily', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'financialDaily']);
+    Route::get('/financial-periods', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'financialPeriods']);
+    Route::get('/payment-tenders', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'paymentTenders']);
+    Route::post('/financial-transactions', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'financialStore']);
+    Route::get('/reports/{type}', [\App\Http\Controllers\Api\V1\MobilePosController::class, 'report']);
+});
+
 Route::prefix('v1')->group(function () {
+    Route::get('/tools/openapi.json', [\App\Http\Controllers\Api\V1\OpenApiController::class, 'spec'])->middleware(['auth','role:admin']);
     Route::get('/payment-tenders', [\App\Http\Controllers\Api\V1\PaymentTenderController::class, 'index']);
 
     Route::get('/categories', [CategoryController::class, 'index']);
@@ -29,9 +55,26 @@ Route::prefix('v1')->group(function () {
         }
 
         Route::middleware('auth')->group(function () {
+        Route::middleware('role:cashier|admin|auditor')->group(function () {
+            Route::get('/shift-checklist', [\App\Http\Controllers\Api\V1\ShiftChecklistController::class, 'index']);
+            Route::post('/shift-checklist', [\App\Http\Controllers\Api\V1\ShiftChecklistController::class, 'store']);
+        });
+
+        Route::prefix('deposit-controls')->middleware('role:cashier|admin|auditor')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Api\V1\DepositControlController::class, 'index']);
+            Route::middleware('role:cashier|admin')->group(function () {
+                Route::post('/', [\App\Http\Controllers\Api\V1\DepositControlController::class, 'store']);
+                Route::post('/{depositControl}/close', [\App\Http\Controllers\Api\V1\DepositControlController::class, 'close']);
+                Route::post('/{depositControl}/reconcile', [\App\Http\Controllers\Api\V1\DepositControlController::class, 'reconcile']);
+                Route::post('/{depositControl}/reopen', [\App\Http\Controllers\Api\V1\DepositControlController::class, 'reopen']);
+                Route::delete('/{depositControl}', [\App\Http\Controllers\Api\V1\DepositControlController::class, 'destroy']);
+            });
+        });
         Route::post('/categories', [CategoryController::class, 'store']);
         Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
 
+        // Before the {product} routes, or the literal segment binds as a product id.
+        Route::post('/products/recalculate-costs', [ProductController::class, 'recalculateCosts']);
         Route::post('/products', [ProductController::class, 'store']);
         Route::put('/products/{product}', [ProductController::class, 'update']);
         Route::post('/products/{product}', [ProductController::class, 'update']);
@@ -54,7 +97,11 @@ Route::prefix('v1')->group(function () {
         Route::post('/inventory/adjust', [InventoryController::class, 'adjust']);
         Route::patch('/inventory/{ingredient}', [InventoryController::class, 'update']);
         Route::delete('/inventory/{ingredient}', [InventoryController::class, 'destroy']);
-        Route::get('/inventory/{ingredient}/transactions', [InventoryController::class, 'transactions']);
+        Route::post('/inventory/transactions/{transaction}/undo', [InventoryController::class, 'undo']);
+        Route::post('/inventory/transactions/{transaction}/undo-production', [InventoryController::class, 'undoProduction']);
+        Route::post('/inventory/{ingredient}/produce', [InventoryController::class, 'produce']);
+        Route::get('/inventory/{ingredient}/transactions', [InventoryController::class, 'transactions'])->withTrashed();
+        Route::get('/inventory-cost-report', \App\Http\Controllers\Api\V1\InventoryReportController::class)->middleware('role:admin|auditor');
 
         Route::get('/reports/daily-sales', [ReportController::class, 'dailySales']);
         Route::get('/reports/monthly-sales', [ReportController::class, 'monthlySales']);
@@ -68,6 +115,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/reports/heatmap', [ReportController::class, 'heatmap']);
         Route::get('/reports/analytics', [ReportController::class, 'analytics']);
         Route::get('/reports/ft-breakdown', [ReportController::class, 'ftBreakdown']);
+        Route::get('/reports/serving-time', [ReportController::class, 'servingTime']);
+        Route::get('/reports/serving-time-orders', [ReportController::class, 'servingTimeOrders']);
+        Route::patch('/reports/serving-time-orders/{order}', [ReportController::class, 'updateOrderServingTime']);
 
         Route::get('/payment-tenders/all', [\App\Http\Controllers\Api\V1\PaymentTenderController::class, 'all']);
         Route::post('/payment-tenders', [\App\Http\Controllers\Api\V1\PaymentTenderController::class, 'store']);
@@ -76,6 +126,8 @@ Route::prefix('v1')->group(function () {
 
         Route::get('/financial-transactions', [\App\Http\Controllers\Api\V1\FinancialTransactionController::class, 'index']);
         Route::get('/financial-transactions/summary', [\App\Http\Controllers\Api\V1\FinancialTransactionController::class, 'summary']);
+        Route::get('/financial-transactions/daily', [\App\Http\Controllers\Api\V1\FinancialTransactionController::class, 'daily']);
+        Route::get('/financial-transactions/periods', [\App\Http\Controllers\Api\V1\FinancialTransactionController::class, 'periods']);
         Route::post('/financial-transactions', [\App\Http\Controllers\Api\V1\FinancialTransactionController::class, 'store']);
         Route::patch('/financial-transactions/{financialTransaction}', [\App\Http\Controllers\Api\V1\FinancialTransactionController::class, 'update']);
         Route::delete('/financial-transactions/{financialTransaction}', [\App\Http\Controllers\Api\V1\FinancialTransactionController::class, 'destroy']);
@@ -115,7 +167,9 @@ Route::prefix('v1')->group(function () {
         Route::delete('/hris/employees/{employee}', [HrisController::class, 'destroyEmployee']);
 
         Route::get('/hris/payroll', [HrisController::class, 'payrollRecords']);
+        Route::get('/hris/payroll-report', [HrisController::class, 'payrollReport'])->middleware('role:admin');
         Route::post('/hris/payroll', [HrisController::class, 'storePayroll']);
+        Route::post('/hris/payroll/bulk-release', [HrisController::class, 'bulkReleasePayroll'])->middleware('role:admin');
         Route::post('/hris/payroll/{payrollRecord}/pay', [HrisController::class, 'markPayrollPaid']);
         Route::delete('/hris/payroll/{payrollRecord}', [HrisController::class, 'destroyPayroll']);
 
@@ -153,6 +207,21 @@ Route::prefix('v1')->group(function () {
         Route::get('/distribution/snapshots/{snapshot}', [\App\Http\Controllers\Api\V1\DistributionController::class, 'showSnapshot']);
         Route::post('/distribution/snapshots', [\App\Http\Controllers\Api\V1\DistributionController::class, 'storeSnapshot']);
         Route::post('/distribution/snapshots/{snapshot}/payout', [\App\Http\Controllers\Api\V1\DistributionController::class, 'recordPayout']);
+
+        // Stall Rental (isolated, no FK to POS)
+        Route::get('/rental/stalls', [\App\Http\Controllers\Api\V1\RentalController::class, 'stallsIndex']);
+        Route::patch('/rental/stalls/{stall}', [\App\Http\Controllers\Api\V1\RentalController::class, 'stallUpdate']);
+        Route::get('/rental/tenants', [\App\Http\Controllers\Api\V1\RentalController::class, 'tenantsIndex']);
+        Route::post('/rental/tenants', [\App\Http\Controllers\Api\V1\RentalController::class, 'tenantStore']);
+        Route::put('/rental/tenants/{tenant}', [\App\Http\Controllers\Api\V1\RentalController::class, 'tenantUpdate']);
+        Route::delete('/rental/tenants/{tenant}', [\App\Http\Controllers\Api\V1\RentalController::class, 'tenantDestroy']);
+        Route::get('/rental/schedules/day', [\App\Http\Controllers\Api\V1\RentalController::class, 'schedulesDay']);
+        Route::get('/rental/schedules/calendar', [\App\Http\Controllers\Api\V1\RentalController::class, 'schedulesCalendar']);
+        Route::get('/rental/schedules/timeline', [\App\Http\Controllers\Api\V1\RentalController::class, 'schedulesTimeline']);
+        Route::post('/rental/schedules', [\App\Http\Controllers\Api\V1\RentalController::class, 'scheduleStore']);
+        Route::put('/rental/schedules/{schedule}', [\App\Http\Controllers\Api\V1\RentalController::class, 'scheduleUpdate']);
+        Route::delete('/rental/schedules/{schedule}', [\App\Http\Controllers\Api\V1\RentalController::class, 'scheduleDestroy']);
+        Route::get('/rental/stats', [\App\Http\Controllers\Api\V1\RentalController::class, 'stats']);
 
         Route::get('/tools/tables', [\App\Http\Controllers\Api\V1\ToolsController::class, 'tables']);
         Route::get('/tools/tables/{table}/columns', [\App\Http\Controllers\Api\V1\ToolsController::class, 'columns'])

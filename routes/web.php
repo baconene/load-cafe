@@ -17,6 +17,28 @@ use App\Http\Controllers\WelcomeController;
 
 Route::get('/', [WelcomeController::class, 'index'])->name('home');
 
+// Public, read-only training pages. Screenshots contain fictional sample data.
+Route::inertia('/demo/functionality', 'DemoFunctionality')->name('demo.functionality');
+Route::inertia('/demo/functionality/dashboard', 'DemoFunctionality', ['guide' => 'dashboard'])->name('demo.dashboard');
+Route::inertia('/demo/functionality/orders', 'DemoFunctionality', ['guide' => 'orders'])->name('demo.orders');
+Route::inertia('/demo/functionality/deposit-control', 'DemoFunctionality', ['guide' => 'deposit-control'])->name('demo.deposit');
+Route::inertia('/demo/functionality/financial', 'DemoFunctionality', ['guide' => 'financial'])->name('demo.financial');
+Route::inertia('/demo/functionality/reports', 'DemoFunctionality', ['guide' => 'reports'])->name('demo.reports');
+Route::get('/demo/functionality/reports/{report}', function (string $report) {
+    abort_unless(in_array($report, [
+        'orders', 'daily', 'monthly', 'products', 'pl',
+        'financial', 'bills', 'inventory', 'heatmap', 'serving',
+    ], true), 404);
+
+    return \Inertia\Inertia::render('DemoFunctionality', ['guide' => 'reports-'.$report]);
+})->name('demo.reports.guide');
+Route::inertia('/demo/functionality/POS', 'DemoFunctionality', ['guide' => 'POS'])->name('demo.pos');
+Route::get('/demo/functionality/POS/{guide}', function (string $guide) {
+    abort_unless(in_array($guide, ['cancelOrder', 'pendingPayment', 'modifyOrder', 'gcash', 'receipt'], true), 404);
+
+    return \Inertia\Inertia::render('DemoFunctionality', ['guide' => $guide]);
+})->name('demo.pos.guide');
+
 Route::get('/public/orders/{token}', [\App\Http\Controllers\PublicOrderController::class, 'show'])
     ->where('token', '[0-9a-f]{32}')
     ->name('public.orders.show');
@@ -24,11 +46,21 @@ Route::get('/public/orders/{token}', [\App\Http\Controllers\PublicOrderControlle
 Route::inertia('/printing-architecture', 'PrintingArchitecture')
     ->name('printing.architecture');
 
+Route::inertia('/hi-tan', 'HiTan')
+    ->name('hi.tan');
+
+Route::inertia('/gumroadDescription', 'GumroadDescription')
+    ->name('gumroad.description');
+
 Route::get('menu/{id}', [MenuController::class, 'show'])
     ->where('id', '[0-9]+')
     ->name('menu.show');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::inertia('deposit-control', 'DepositControlPage')
+        ->name('deposit-control.index')->middleware('role:cashier|admin|auditor');
+    Route::inertia('deposit-control/history', 'DepositControlPage', ['historyView' => true])
+        ->name('deposit-control.history')->middleware('role:cashier|admin|auditor');
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('pos', [PosController::class, 'index'])
@@ -72,15 +104,31 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('role:admin');
 
     // Tools — read-only SQL console (admin only)
+    Route::get('tools/api', fn () => \Inertia\Inertia::render('Tools/ApiTester'))->name('tools.api')->middleware('role:admin');
+
     Route::get('tools', [\App\Http\Controllers\ToolsPageController::class, 'index'])
         ->name('tools.index')
         ->middleware('role:admin');
+
+    // System documentation
+    Route::get('documentation', fn () => \Inertia\Inertia::render('Documentation'))
+        ->name('documentation.index')
+        ->middleware('role:admin');
+    Route::get('documentation/{module}', fn (string $module) => \Inertia\Inertia::render('Documentation/Detail', ['module' => $module]))
+        ->name('documentation.detail')
+        ->middleware('role:admin')
+        ->where('module', '[a-z-]+');
 
     // Parcel Tracking
     Route::get('parcels', [ParcelPageController::class, 'index'])
         ->name('parcels.index');
     Route::get('parcels/{parcel}', [ParcelPageController::class, 'show'])
         ->name('parcels.show');
+
+    // Stall Mapping
+    Route::get('mapping', fn () => \Inertia\Inertia::render('Mapping'))
+        ->name('mapping')
+        ->middleware('role:admin');
 });
 
 require __DIR__.'/settings.php';

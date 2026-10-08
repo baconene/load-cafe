@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Controllers\Settings\AdvertisementController;
-use App\Http\Controllers\Settings\PublicLinkController;
+use App\Http\Controllers\Settings\GcashQrController;
 use App\Http\Controllers\Settings\LogoController;
 use App\Http\Controllers\Settings\MediaController;
 use App\Http\Controllers\Settings\PageContentController;
@@ -21,6 +21,13 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('settings/payment-tenders', [\App\Http\Controllers\Settings\PaymentTenderSettingsController::class, 'index'])
         ->name('settings.payment-tenders')
+        ->middleware('role:admin');
+
+    Route::post('settings/gcash-qr', [GcashQrController::class, 'update'])
+        ->name('settings.gcash-qr.update')
+        ->middleware('role:admin');
+    Route::delete('settings/gcash-qr', [GcashQrController::class, 'destroy'])
+        ->name('settings.gcash-qr.destroy')
         ->middleware('role:admin');
 
     Route::get('settings/users', [UserManagementController::class, 'index'])
@@ -67,10 +74,6 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('role:admin');
 
     // System (admin only)
-    Route::get('settings/public-link', [PublicLinkController::class, 'edit'])
-        ->name('settings.public-link')
-        ->middleware('role:admin');
-
     Route::get('settings/system', [SystemController::class, 'index'])
         ->name('settings.system')
         ->middleware('role:admin');
