@@ -18,9 +18,12 @@ class PrintServiceSetting extends Model
         'print_auto_print',
         'print_enabled',
         'print_channel',
+        'print_bluetooth_name',
+        'print_bluetooth_address',
         'social_facebook',
         'social_instagram',
         'receipt_qr_type',
+        'gcash_qr_path',
     ];
 
     protected $casts = [
@@ -41,9 +44,12 @@ class PrintServiceSetting extends Model
             'print_auto_print'    => false,
             'print_enabled'       => false,
             'print_channel'       => 'orders',
+            'print_bluetooth_name' => '',
+            'print_bluetooth_address' => '',
             'social_facebook'     => null,
             'social_instagram'    => null,
             'receipt_qr_type'     => 'order_url',
+            'gcash_qr_path'       => null,
         ]);
     }
 }
