@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DepositControl;
 use App\Models\Ingredient;
 use App\Models\KitchenSetting;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Services\InventoryService;
 use App\Services\ReportService;
+use App\Services\ShiftChecklist;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -16,6 +20,7 @@ class DashboardController extends Controller
     public function __construct(
         private InventoryService $inventoryService,
         private ReportService $reportService,
+        private ShiftChecklist $shiftChecklist,
     ) {}
 
     public function index(): Response
@@ -29,11 +34,66 @@ class DashboardController extends Controller
         }
 
         return Inertia::render('Dashboard', [
-            'stats' => $stats,
-            'recentOrders' => $this->recentOrders(),
-            'pl' => $pl,
-            'servingTime' => $this->buildServingTime($user),
+            'stats'                  => $stats,
+            'recentOrders'           => $this->recentOrders(),
+            'pl'                     => $pl,
+            'servingTime'            => $this->buildServingTime($user),
+            'pendingProductBreakdown' => $this->buildPendingProductBreakdown($user),
+            'depositShift'           => $this->buildDepositShift($user),
+            'shiftChecklist'         => $user->hasAnyRole(['admin', 'cashier', 'auditor'])
+                ? $this->shiftChecklist->for($user)
+                : null,
         ]);
+    }
+
+    /**
+     * TIMESTAMPDIFF and HOUR are MySQL spellings, and the dashboard threw a 500 under
+     * SQLite because of them. Both engines are in play here: MySQL in production,
+     * SQLite in the test suite.
+     */
+    private function elapsedSecondsSql(): string
+    {
+        return DB::connection()->getDriverName() === 'sqlite'
+            ? "(strftime('%s', completed_at) - strftime('%s', created_at))"
+            : 'TIMESTAMPDIFF(SECOND, created_at, completed_at)';
+    }
+
+    private function hourSql(): string
+    {
+        return DB::connection()->getDriverName() === 'sqlite'
+            ? "CAST(strftime('%H', created_at) AS INTEGER)"
+            : 'HOUR(created_at)';
+    }
+
+    /**
+     * The shift the deposit control is currently holding, if any. Same definition the
+     * deposit control itself uses: active_slot marks the one open shift, closed_at says
+     * whether the closing count is in yet, and only the cashier who opened it may
+     * finish it. Shown so the card can say whose shift is open rather than inviting a
+     * second person to start one they will not be allowed to complete.
+     */
+    private function buildDepositShift($user): ?array
+    {
+        if (! $user->hasAnyRole(['admin', 'cashier', 'auditor'])) {
+            return null;
+        }
+
+        $shift = DepositControl::with('user:id,name')->where('active_slot', 1)->first();
+
+        if (! $shift) {
+            return null;
+        }
+
+        return [
+            'id'          => $shift->id,
+            'user_id'     => $shift->user_id,
+            'user_name'   => $shift->user?->name,
+            'is_mine'     => $shift->user_id === $user->id,
+            'opened_at'   => $shift->opened_at?->toIso8601String(),
+            'closed_at'   => $shift->closed_at?->toIso8601String(),
+            'opening_cash' => (float) ($shift->opening_snapshot['opening_cash'] ?? 0),
+            'stage'       => $shift->closed_at === null ? 'counting' : 'awaiting_submission',
+        ];
     }
 
     private function buildMonthlyPl(): array
@@ -86,17 +146,20 @@ class DashboardController extends Controller
             return null;
         }
 
+        $elapsed = $this->elapsedSecondsSql();
+        $hour    = $this->hourSql();
+
         $row = Order::whereDate('created_at', today())
             ->where('status', 'completed')
             ->whereNotNull('completed_at')
-            ->selectRaw('AVG(TIMESTAMPDIFF(SECOND, created_at, completed_at)) as avg_seconds, COUNT(*) as completed_count')
+            ->selectRaw("AVG({$elapsed}) as avg_seconds, COUNT(*) as completed_count")
             ->first();
 
         $peakHours = Order::whereDate('created_at', today())
             ->where('status', 'completed')
             ->whereNotNull('completed_at')
-            ->selectRaw('HOUR(created_at) as hour, COUNT(*) as order_count, AVG(TIMESTAMPDIFF(SECOND, created_at, completed_at)) as avg_seconds')
-            ->groupByRaw('HOUR(created_at)')
+            ->selectRaw("{$hour} as hour, COUNT(*) as order_count, AVG({$elapsed}) as avg_seconds")
+            ->groupByRaw($hour)
             ->orderByDesc('order_count')
             ->limit(3)
             ->get()
@@ -117,6 +180,27 @@ class DashboardController extends Controller
             'fast_minutes'    => $kitchenSetting->serving_fast_minutes,
             'slow_minutes'    => $kitchenSetting->serving_slow_minutes,
         ];
+    }
+
+    private function buildPendingProductBreakdown($user): array
+    {
+        if (! $user->hasAnyRole(['admin', 'cashier', 'kitchen'])) {
+            return [];
+        }
+
+        return OrderItem::query()
+            ->join('orders', 'order_items.order_id', '=', 'orders.id')
+            ->join('products', 'order_items.product_id', '=', 'products.id')
+            ->whereIn('orders.status', ['pending', 'preparing', 'ready'])
+            ->selectRaw('products.name as product_name, SUM(order_items.quantity) as total_qty')
+            ->groupBy('products.name')
+            ->orderByDesc('total_qty')
+            ->get()
+            ->map(fn ($r) => [
+                'name' => $r->product_name,
+                'qty'  => (int) $r->total_qty,
+            ])
+            ->toArray();
     }
 
     private function recentOrders(): array
