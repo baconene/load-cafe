@@ -1351,8 +1351,8 @@ onMounted(async () => {
     <div class="rpt-theme rpt-page space-y-5">
         <header class="rpt-heading">
             <div>
-                <p class="rpt-eyebrow"><span aria-hidden="true" />BYPASS GRILL / REPORTS</p>
-                <h1>THE NUMBERS <span>BEHIND THE GRILL.</span></h1>
+                <p class="rpt-eyebrow"><span aria-hidden="true" />LOAD CAFE / REPORTS</p>
+                <h1>THE NUMBERS <span>BEHIND the café.</span></h1>
                 <p class="rpt-intro">{{ activeTabInfo.hint }}</p>
             </div>
             <div class="rpt-heading-actions">

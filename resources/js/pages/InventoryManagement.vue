@@ -511,7 +511,7 @@ const typeColor: Record<string, string> = {
     <div class="inventory-theme inventory-page space-y-6">
         <header class="inventory-heading">
             <div>
-                <p class="inventory-eyebrow">BYPASS GRILL / STOCK ROOM</p>
+                <p class="inventory-eyebrow">LOAD CAFE / STOCK ROOM</p>
                 <h1>Stock <em>&amp; supplies.</em></h1>
                 <p>
                     Keep the kitchen stocked and every movement accounted for.

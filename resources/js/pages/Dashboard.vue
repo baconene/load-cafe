@@ -285,7 +285,7 @@ const cards = computed(() => {
                 emphasis: true,
             },
             {
-                label: 'On the grill',
+                label: 'At the café',
                 value: props.stats.preparing_orders ?? 0,
                 note: 'Orders being prepared',
             },
@@ -402,14 +402,14 @@ function refresh() {
 
 <template>
     <Head title="Dashboard" />
-    <div class="grill-dashboard">
+    <div class="café-dashboard">
         <header class="dashboard-heading">
             <div>
                 <p class="eyebrow">
-                    <Flame :size="14" aria-hidden="true" /> BYPASS GRILL / DAILY
+                    <Flame :size="14" aria-hidden="true" /> LOAD CAFE / DAILY
                     OVERVIEW
                 </p>
-                <h1>Today at <em>the grill.</em></h1>
+                <h1>Today at <em>the café.</em></h1>
                 <p class="intro">
                     Welcome back, {{ page.props.auth.user.name }}. Here's what
                     needs your attention.
@@ -804,7 +804,7 @@ function refresh() {
             </aside>
         </div>
         <footer class="dashboard-footer">
-            <span>BYPASS GRILL · GOOD FOOD. GOOD MOOD.</span
+            <span>LOAD CAFE · GOOD FOOD. GOOD MOOD.</span
             ><span>Figures update when you open or refresh this page.</span>
         </footer>
 
@@ -812,7 +812,7 @@ function refresh() {
         <Teleport to="body">
             <div
                 v-if="checklistOpen && checklist"
-                class="grill-dashboard checklist-backdrop"
+                class="café-dashboard checklist-backdrop"
                 @click.self="checklistOpen = false"
             >
                 <div
@@ -942,7 +942,7 @@ function refresh() {
 </template>
 
 <style scoped>
-.grill-dashboard {
+.café-dashboard {
     background: #f6f2e9;
     color: #24231e;
     min-height: 100%;
@@ -1625,11 +1625,11 @@ td small {
     letter-spacing: 1px;
     font-weight: 700;
 }
-.grill-dashboard :focus-visible {
+.café-dashboard :focus-visible {
     outline: 2px solid #ad3b19;
     outline-offset: 4px;
 }
-.grill-dashboard button {
+.café-dashboard button {
     cursor: pointer;
 }
 .spinning {
@@ -1681,7 +1681,7 @@ td small {
     }
 }
 @media (max-width: 540px) {
-    .grill-dashboard {
+    .café-dashboard {
         padding: 24px 16px;
     }
     .dashboard-heading h1 {

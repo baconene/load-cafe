@@ -640,7 +640,7 @@ onBeforeUnmount(() => {
     <Head title="Point of Sale" />
     <div class="pos-theme pos-page">
     <header class="pos-heading">
-        <div><p class="pos-eyebrow"><Flame :size="14" aria-hidden="true" /> BYPASS GRILL / POINT OF SALE</p><h1>Let's get <em>grilling.</em></h1><p>Choose items, review the order, then collect payment.</p></div>
+        <div><p class="pos-eyebrow"><Flame :size="14" aria-hidden="true" /> LOAD CAFE / POINT OF SALE</p><h1>Let's get <em>grilling.</em></h1><p>Choose items, review the order, then collect payment.</p></div>
         <div class="pos-header-actions"><button @click="unpaidOrdersOpen = true; loadUnpaidOrders()"><ClipboardList :size="17" aria-hidden="true" />Pending payments <span>{{ unpaidOrders.length }}</span></button><InertiaLink href="/deposit-control"><Wallet :size="17" aria-hidden="true" />Deposit control<ArrowUpRight :size="14" aria-hidden="true" /></InertiaLink></div>
     </header>
     <OfflineBanner />
@@ -1453,7 +1453,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* Grill theme tokens: the Tailwind utilities on this page (and its teleported
+/* café theme tokens: the Tailwind utilities on this page (and its teleported
    drawer and modals) resolve through these, matching the dashboard palette.
    Like the dashboard, the POS stays light regardless of the app appearance. */
 .pos-theme {

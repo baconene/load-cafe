@@ -604,7 +604,7 @@ return
     <div class="product-theme product-page space-y-6">
         <header class="product-heading">
             <div>
-                <p class="product-eyebrow">BYPASS GRILL / MENU COSTING</p>
+                <p class="product-eyebrow">LOAD CAFE / MENU COSTING</p>
                 <h1>What each dish <em>really costs.</em></h1>
                 <p>
                     Price against recipe cost, so the menu earns what you think

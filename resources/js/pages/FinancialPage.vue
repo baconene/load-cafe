@@ -1075,7 +1075,7 @@ onBeforeUnmount(() => {
         <header class="fin-heading">
             <div>
                 <p class="fin-eyebrow">
-                    <span aria-hidden="true" />BYPASS GRILL / FINANCES
+                    <span aria-hidden="true" />LOAD CAFE / FINANCES
                 </p>
                 <h1>FOLLOW EVERY <span>PESO.</span></h1>
                 <p class="fin-intro">
@@ -2217,7 +2217,7 @@ onBeforeUnmount(() => {
         </div>
 
         <footer class="fin-footer">
-            <span>BYPASS GRILL · GOOD FOOD. GOOD MOOD.</span
+            <span>LOAD CAFE · GOOD FOOD. GOOD MOOD.</span
             ><span
                 >Figures load for the period above. Select Refresh to
                 update.</span
@@ -2512,7 +2512,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* Welcome-page palette: ink, cream and grill orange. */
+/* Welcome-page palette: ink, cream and café orange. */
 .fin-theme {
     --ink: #24231e;
     --cream: #f6f2e9;
