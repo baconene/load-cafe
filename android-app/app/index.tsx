@@ -31,10 +31,10 @@ export default function Home(){
  const revenue=todayOrders.filter(o=>o.payment_status==='paid').reduce((n,o)=>n+Number(o.total_amount||0),0);
  const active=orders.filter(o=>['pending','preparing'].includes(String(o.status).toLowerCase())).length;
  return <SafeAreaView style={s.root}>
-  <View style={[s.top,{paddingTop:8}]}><Pressable style={s.menuBtn} onPress={()=>setMenu(true)}><Text style={s.menuIcon}>☰</Text></Pressable><Text style={s.topBrand}>BYPASS GRILL</Text><Pressable onPress={sync}><Text style={s.sync}>SYNC</Text></Pressable></View>
+  <View style={[s.top,{paddingTop:8}]}><Pressable style={s.menuBtn} onPress={()=>setMenu(true)}><Text style={s.menuIcon}>☰</Text></Pressable><Text style={s.topBrand}>LOAD CAFE</Text><Pressable onPress={sync}><Text style={s.sync}>SYNC</Text></Pressable></View>
   <ScrollView contentContainerStyle={s.page}>
-   <Text style={s.eye}>BYPASS GRILL / DAILY OVERVIEW</Text>
-   <Text style={s.title}>Today at <Text style={s.em}>the grill.</Text></Text>
+   <Text style={s.eye}>LOAD CAFE / DAILY OVERVIEW</Text>
+   <Text style={s.title}>Today at <Text style={s.em}>the café.</Text></Text>
    <Text style={s.intro}>{status}</Text>
    <Text style={s.date}>{new Date().toLocaleDateString('en-PH',{weekday:'long',month:'short',day:'numeric'})} - Manila</Text>
    <View style={s.work}><Text style={s.workTitle}>Ready for the next order?</Text><Text style={s.workCopy}>Take an order, collect payment, and keep the shift moving.</Text><Pressable style={s.workButton} onPress={()=>router.push('/pos')}><Text style={s.workButtonText}>OPEN POINT OF SALE  →</Text></Pressable></View>
@@ -42,7 +42,7 @@ export default function Home(){
    <View style={s.panel}><View style={s.panelHead}><View><Text style={s.eye}>CURRENT WORKSPACE</Text><Text style={s.panelTitle}>Offline ready</Text></View><Text style={s.badge}>{products} products</Text></View><Text style={s.copy}>Products, printer settings and recent orders are cached on this device. New orders remain queued until the next successful sync.</Text><Text style={s.last}>Last sync: {last?new Date(last).toLocaleString():'Never'}</Text></View>
    <View style={s.panel}><View style={s.panelHead}><View><Text style={s.eye}>LATEST ACTIVITY</Text><Text style={s.panelTitle}>Recent orders</Text></View><Pressable onPress={()=>router.push('/orders')}><Text style={s.link}>VIEW ALL →</Text></Pressable></View>{orders.slice(0,5).map(o=><View key={String(o.id)} style={s.order}><View><Text style={s.orderName}>#{String((o.queue_number&&typeof o.queue_number==='object'?o.queue_number.number:o.queue_number)??o.id)} - {String(o.order_type??'order').replace('_',' ')}</Text><Text style={s.orderMeta}>{o.customer_name||'Walk-in'} - {o.status||'pending'}</Text></View><Text style={s.amount}>PHP {Number(o.total_amount||0).toFixed(2)}</Text></View>)}{!orders.length&&<Text style={s.empty}>No synchronized orders yet.</Text>}</View>
   </ScrollView>
-  {menu&&<View style={s.overlay}><Pressable style={StyleSheet.absoluteFill} onPress={()=>setMenu(false)}/><View style={s.drawer}><View style={s.drawerHead}><Text style={s.eye}>BYPASS GRILL / POS</Text><Pressable onPress={()=>setMenu(false)}><Text style={s.close}>x</Text></Pressable></View><Text style={s.drawerTitle}>Workspace</Text>{NAV.map(([label,path])=><Pressable key={label} style={[s.nav,label==='Dashboard'&&s.navOn]} onPress={()=>{setMenu(false);router.push(path as any)}}><Text style={[s.navText,label==='Dashboard'&&s.navTextOn]}>{label}</Text><Text style={[s.arrow,label==='Dashboard'&&s.navTextOn]}>›</Text></Pressable>)}</View></View>}
+  {menu&&<View style={s.overlay}><Pressable style={StyleSheet.absoluteFill} onPress={()=>setMenu(false)}/><View style={s.drawer}><View style={s.drawerHead}><Text style={s.eye}>LOAD CAFE / POS</Text><Pressable onPress={()=>setMenu(false)}><Text style={s.close}>x</Text></Pressable></View><Text style={s.drawerTitle}>Workspace</Text>{NAV.map(([label,path])=><Pressable key={label} style={[s.nav,label==='Dashboard'&&s.navOn]} onPress={()=>{setMenu(false);router.push(path as any)}}><Text style={[s.navText,label==='Dashboard'&&s.navTextOn]}>{label}</Text><Text style={[s.arrow,label==='Dashboard'&&s.navTextOn]}>›</Text></Pressable>)}</View></View>}
  </SafeAreaView>
 }
 function Metric({label,value,featured=false}:{label:string,value:string,featured?:boolean}){return <View style={[s.metric,featured&&s.metricFeatured]}><Text style={s.metricLabel}>{label}</Text><Text style={[s.metricValue,featured&&s.featuredText]}>{value}</Text></View>}
