@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
 import { Head, router } from '@inertiajs/vue3'
+import { Plus, Pencil, Trash2, X, PlusCircle, MinusCircle, FolderPlus, Check, ImageIcon, Upload, Calculator, Eye, TrendingUp, PackagePlus, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { ref, computed, watch } from 'vue'
 import { toast } from 'vue-sonner'
+import RecipeBuilder from '@/components/RecipeBuilder.vue'
 import api from '@/utils/api'
-import { Plus, Pencil, Trash2, X, PlusCircle, MinusCircle, UtensilsCrossed, FolderPlus, Check, ImageIcon, Upload, Calculator, Eye, TrendingUp, PackagePlus } from 'lucide-vue-next'
 
 defineOptions({
     layout: {
@@ -21,7 +22,13 @@ interface Product {
     id: number; name: string; sku: string | null; description: string | null
     price: number; cost: number; is_active: boolean; display_order: number
     image: string | null; category_id: number; category_name: string
-    recipes: { ingredient_id: number; ingredient_name: string; quantity: number; unit: string }[]
+    /** What the recipe costs at today's ingredient prices. */
+    recipe_cost: number
+    /** recipe_cost − cost. Non-zero means the stored cost is stale. */
+    cost_drift: number
+    has_recipe: boolean
+    recipe_priced: boolean
+    recipes: { ingredient_id: number; ingredient_name: string; quantity: number; unit: string; cost_per_unit: number; line_cost: number }[]
 }
 
 const props = defineProps<{ products: Product[]; categories: Category[]; ingredients: Ingredient[] }>()
@@ -58,7 +65,11 @@ const removeImage  = ref(false)
 
 const onImageChange = (e: Event) => {
     const file = (e.target as HTMLInputElement).files?.[0]
-    if (!file) return
+
+    if (!file) {
+return
+}
+
     imageFile.value    = file
     imagePreview.value = URL.createObjectURL(file)
     removeImage.value  = false
@@ -71,13 +82,209 @@ const clearImage = () => {
 }
 
 // ─── Computed ────────────────────────────────────────────────────────────────
+// ─── Cost analysis ────────────────────────────────────────────────────────────
+// Three states a product's cost can be in, and only one of them is fine:
+//   priced   - recipe cost matches the stored cost
+//   drifted  - ingredients have changed price since Calculate was last pressed
+//   norecipe - no recipe at all, so COGS falls back on the stored cost forever
+const DRIFT_TOLERANCE = 0.005
+
+type CostState = 'priced' | 'drifted' | 'norecipe'
+const costState = (p: Product): CostState => {
+    if (!p.has_recipe) {
+return 'norecipe'
+}
+
+    return Math.abs(p.cost_drift) > DRIFT_TOLERANCE ? 'drifted' : 'priced'
+}
+
+// Margins are shown against the recipe cost where there is one, since that is what
+// the dish costs today rather than whenever Calculate was last pressed.
+const effectiveCost = (p: Product) => (p.has_recipe ? p.recipe_cost : p.cost)
+
+const peso = (v: number) =>
+    new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(v)
+
+const driftedCount = computed(() => props.products.filter((p) => costState(p) === 'drifted').length)
+const noRecipeCount = computed(() => props.products.filter((p) => costState(p) === 'norecipe').length)
+const activeCount = computed(() => props.products.filter((p) => p.is_active).length)
+
+// Margin across the menu weighted by price, not a mean of percentages: a ₱400 platter
+// and a ₱20 drink should not pull on the figure equally.
+const blendedMargin = computed(() => {
+    const priced = props.products.filter((p) => p.price > 0)
+    const revenue = priced.reduce((s, p) => s + p.price, 0)
+
+    if (revenue <= 0) {
+return null
+}
+
+    const cost = priced.reduce((s, p) => s + p.cost, 0)
+
+    return ((revenue - cost) / revenue) * 100
+})
+
+// ─── Filtering and sorting ────────────────────────────────────────────────────
+type SortKey = 'name' | 'category' | 'price' | 'cost' | 'margin'
+const sortKey = ref<SortKey>('name')
+const sortDir = ref<'asc' | 'desc'>('asc')
+const categoryFilter = ref<number | null>(null)
+const attentionOnly = ref<CostState | null>(null)
+const expandedId = ref<number | null>(null)
+
+const toggleSort = (key: SortKey) => {
+    if (sortKey.value === key) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+    } else {
+        sortKey.value = key
+        // Money reads most usefully highest-first; names do not.
+        sortDir.value = key === 'name' || key === 'category' ? 'asc' : 'desc'
+    }
+}
+
+const ariaSort = (key: SortKey) =>
+    sortKey.value === key ? (sortDir.value === 'asc' ? 'ascending' : 'descending') : undefined
+
+// Cards have no column headers to click, so narrow screens get a plain select.
+const SORT_OPTIONS: { value: string; label: string; key: SortKey; dir: 'asc' | 'desc' }[] = [
+    { value: 'name:asc', label: 'Name (A–Z)', key: 'name', dir: 'asc' },
+    { value: 'margin:desc', label: 'Margin (highest first)', key: 'margin', dir: 'desc' },
+    { value: 'margin:asc', label: 'Margin (lowest first)', key: 'margin', dir: 'asc' },
+    { value: 'price:desc', label: 'Price (highest first)', key: 'price', dir: 'desc' },
+    { value: 'cost:desc', label: 'Cost (highest first)', key: 'cost', dir: 'desc' },
+    { value: 'category:asc', label: 'Category (A–Z)', key: 'category', dir: 'asc' },
+]
+
+const sortChoice = computed({
+    get: () => `${sortKey.value}:${sortDir.value}`,
+    set: (v: string) => {
+        const opt = SORT_OPTIONS.find((o) => o.value === v)
+
+        if (!opt) {
+            return
+        }
+
+        sortKey.value = opt.key
+        sortDir.value = opt.dir
+    },
+})
+
+const toggleAttention = (state: CostState) => {
+    attentionOnly.value = attentionOnly.value === state ? null : state
+}
+
+// Sorted on the same basis the column displays, or the order looks arbitrary.
+const marginOf = (p: Product) =>
+    p.price > 0 ? ((p.price - effectiveCost(p)) / p.price) * 100 : -Infinity
+
 const filtered = computed(() => {
     const q = search.value.toLowerCase().trim()
-    if (!q) return props.products
-    return props.products.filter(
-        (p) => p.name.toLowerCase().includes(q) || p.category_name?.toLowerCase().includes(q),
-    )
+    const rows = props.products.filter((p) => {
+        if (categoryFilter.value !== null && p.category_id !== categoryFilter.value) {
+return false
+}
+
+        if (attentionOnly.value !== null && costState(p) !== attentionOnly.value) {
+return false
+}
+
+        if (!q) {
+return true
+}
+
+        return (
+            p.name.toLowerCase().includes(q) ||
+            (p.sku?.toLowerCase().includes(q) ?? false) ||
+            (p.category_name?.toLowerCase().includes(q) ?? false)
+        )
+    })
+
+    const dir = sortDir.value === 'asc' ? 1 : -1
+    const by: Record<SortKey, (p: Product) => string | number> = {
+        name: (p) => p.name.toLowerCase(),
+        category: (p) => (p.category_name ?? '').toLowerCase(),
+        price: (p) => p.price,
+        cost: (p) => p.cost,
+        margin: marginOf,
+    }
+    const pick = by[sortKey.value]
+
+    return [...rows].sort((a, b) => {
+        const x = pick(a)
+        const y = pick(b)
+
+        if (x === y) {
+return a.name.localeCompare(b.name)
+}
+
+        return (x > y ? 1 : -1) * dir
+    })
 })
+
+// ─── Pagination ───────────────────────────────────────────────────────────────
+// Paged in the browser: every product is already loaded for the combo builder, so
+// slicing here keeps search, sort and filter instant across the whole menu rather
+// than only across the visible page.
+const PER_PAGE = 20
+const page = ref(1)
+
+const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / PER_PAGE)))
+
+const paged = computed(() => {
+    const start = (page.value - 1) * PER_PAGE
+
+    return filtered.value.slice(start, start + PER_PAGE)
+})
+
+const rangeStart = computed(() => (filtered.value.length === 0 ? 0 : (page.value - 1) * PER_PAGE + 1))
+const rangeEnd = computed(() => Math.min(page.value * PER_PAGE, filtered.value.length))
+
+const goToPage = (n: number) => {
+    page.value = Math.min(Math.max(1, n), pageCount.value)
+    expandedId.value = null
+}
+
+// Narrowing the list can strand you past the last page; step back rather than
+// showing an empty result for a filter that does match something.
+watch(pageCount, (count) => {
+    if (page.value > count) {
+        page.value = count
+    }
+})
+watch([search, categoryFilter, attentionOnly, sortKey, sortDir], () => {
+    page.value = 1
+})
+
+const clearFilters = () => {
+    search.value = ''
+    categoryFilter.value = null
+    attentionOnly.value = null
+}
+
+const filtersActive = computed(
+    () => search.value.trim() !== '' || categoryFilter.value !== null || attentionOnly.value !== null,
+)
+
+// ─── Bulk re-cost ─────────────────────────────────────────────────────────────
+const recosting = ref(false)
+
+const recalculateAll = async () => {
+    recosting.value = true
+
+    try {
+        const { data } = await api.post('/api/v1/products/recalculate-costs')
+        toast.success(
+            data.updated > 0
+                ? `${data.updated} product cost${data.updated === 1 ? '' : 's'} brought up to date`
+                : 'Every recipe cost was already up to date',
+        )
+        router.reload({ only: ['products'] })
+    } catch (err: any) {
+        toast.error(err.response?.data?.message ?? 'Could not recalculate costs')
+    } finally {
+        recosting.value = false
+    }
+}
 
 // ─── Modal helpers ───────────────────────────────────────────────────────────
 const openAdd = () => {
@@ -114,32 +321,32 @@ const openEdit = (p: Product) => {
 }
 
 // ─── Recipe row helpers ───────────────────────────────────────────────────────
-const addRecipeRow = () => recipes.value.push({ ingredient_id: 0, quantity: 1, unit: '' })
-const removeRecipeRow = (i: number) => recipes.value.splice(i, 1)
-const ingredientOptions = computed(() =>
-    props.ingredients.filter((x) => !x.item_type || x.item_type === 'ingredient')
-)
-
-const onIngredientChange = (i: number) => {
-    const ing = props.ingredients.find((x) => x.id === recipes.value[i].ingredient_id)
-    if (ing) recipes.value[i].unit = ing.unit
-}
-
 // ─── Recipe cost calculation ──────────────────────────────────────────────────
 const calculatingCost = ref(false)
 
 const recipeCostPreview = computed(() => {
     return recipes.value.reduce((sum, row) => {
-        if (!row.ingredient_id || row.quantity <= 0) return sum
+        if (!row.ingredient_id || row.quantity <= 0) {
+return sum
+}
+
         const ing = props.ingredients.find((x) => x.id === row.ingredient_id)
+
         return sum + (ing ? (ing.cost_per_unit ?? 0) * row.quantity : 0)
     }, 0)
 })
 
 const calculateCostFromRecipes = async () => {
+    if (recipes.value.some((row) => row.quantity <= 0)) {
+        toast.warning('Complete all recipe quantities before calculating cost')
+
+        return
+    }
+
     // Client-side preview is instant; if editing an existing product, also persist via API
     if (editingId.value) {
         calculatingCost.value = true
+
         try {
             const res = await api.post(`/api/v1/products/${editingId.value}/calculate-cost`)
             form.value.cost = res.data.cost
@@ -173,31 +380,41 @@ const removeComboItem = (i: number) => comboItems.value.splice(i, 1)
 const comboPricePreview = computed(() =>
     comboItems.value.reduce((sum, c) => {
         const p = props.products.find((x) => x.id === c.product_id)
+
         return sum + (p ? Number(p.price) * c.quantity : 0)
     }, 0),
 )
 const comboCostPreview = computed(() =>
     comboItems.value.reduce((sum, c) => {
         const p = props.products.find((x) => x.id === c.product_id)
+
         return sum + (p ? Number(p.cost) * c.quantity : 0)
     }, 0),
 )
 
 const mergeCombo = () => {
     const valid = comboItems.value.filter((c) => c.product_id > 0 && c.quantity > 0)
+
     if (valid.length === 0) {
         toast.warning('Add at least one component product')
+
         return
     }
 
     // Merge recipes by ingredient_id, summing quantity × component quantity.
     const merged = new Map<number, RecipeRow>()
+
     for (const c of valid) {
         const p = props.products.find((x) => x.id === c.product_id)
-        if (!p) continue
+
+        if (!p) {
+continue
+}
+
         for (const r of p.recipes) {
             const addQty = Number(r.quantity) * c.quantity
             const existing = merged.get(r.ingredient_id)
+
             if (existing) {
                 existing.quantity = Number((existing.quantity + addQty).toFixed(3))
             } else {
@@ -224,31 +441,70 @@ const mergeCombo = () => {
 
 // ─── Margin helpers ───────────────────────────────────────────────────────────
 const marginPct = (price: number, cost: number): string => {
-    if (price <= 0) return '—'
+    if (price <= 0) {
+return '—'
+}
+
     return ((price - cost) / price * 100).toFixed(1) + '%'
 }
 
 const marginClass = (price: number, cost: number): string => {
-    if (price <= 0) return 'text-muted-foreground'
+    if (price <= 0) {
+return 'text-muted-foreground'
+}
+
     const m = (price - cost) / price * 100
-    if (m >= 50) return 'text-green-600 dark:text-green-400 font-semibold'
-    if (m >= 25) return 'text-yellow-600 dark:text-yellow-400 font-semibold'
+
+    if (m >= 50) {
+return 'text-green-600 dark:text-green-400 font-semibold'
+}
+
+    if (m >= 25) {
+return 'text-yellow-600 dark:text-yellow-400 font-semibold'
+}
+
     return 'text-red-600 dark:text-red-400 font-semibold'
+}
+
+const marginLabel = (p: Product): string => {
+    if (p.price <= 0) {
+return '—'
+}
+
+    return (((p.price - effectiveCost(p)) / p.price) * 100).toFixed(1) + '%'
+}
+
+const marginTone = (p: Product): string => {
+    if (p.price <= 0) {
+return 'product-sub'
+}
+
+    const m = ((p.price - effectiveCost(p)) / p.price) * 100
+
+    if (m < 0) {
+return 'margin-loss'
+}
+
+    return m >= 40 ? 'margin-good' : 'margin-thin'
 }
 
 // ─── View modal ───────────────────────────────────────────────────────────────
 const viewProduct = ref<Product | null>(null)
 
-const openView = (p: Product) => { viewProduct.value = p }
+const openView = (p: Product) => {
+ viewProduct.value = p
+}
 
 // ─── Submit ───────────────────────────────────────────────────────────────────
 const submitForm = async () => {
     if (!form.value.name || !form.value.category_id || form.value.price <= 0) {
         toast.warning('Name, category, and a price greater than 0 are required')
+
         return
     }
+
     submitting.value = true
-    const validRecipes = recipes.value.filter((r) => r.ingredient_id > 0 && r.quantity > 0)
+    const validRecipes = recipes.value.filter((r) => r.ingredient_id > 0 && r.quantity >= 0)
 
     const fd = new FormData()
     fd.append('category_id',   String(form.value.category_id))
@@ -264,8 +520,14 @@ const submitForm = async () => {
         fd.append(`recipes[${i}][quantity]`,      String(r.quantity))
         fd.append(`recipes[${i}][unit]`,           r.unit || '')
     })
-    if (imageFile.value)  fd.append('image', imageFile.value)
-    if (removeImage.value) fd.append('remove_image', '1')
+
+    if (imageFile.value)  {
+fd.append('image', imageFile.value)
+}
+
+    if (removeImage.value) {
+fd.append('remove_image', '1')
+}
 
     try {
         if (editingId.value) {
@@ -275,6 +537,7 @@ const submitForm = async () => {
             await api.post('/api/v1/products', fd)
             toast.success('Product created')
         }
+
         showModal.value = false
         router.reload({ only: ['products'] })
     } catch (err: any) {
@@ -291,8 +554,12 @@ const newCatName = ref('')
 const addingCat  = ref(false)
 
 const submitNewCategory = async () => {
-    if (!newCatName.value.trim()) return
+    if (!newCatName.value.trim()) {
+return
+}
+
     addingCat.value = true
+
     try {
         const res = await api.post('/api/v1/categories', { name: newCatName.value.trim() })
         const created: Category = { id: res.data.id, name: res.data.name }
@@ -312,8 +579,12 @@ const submitNewCategory = async () => {
 const confirmDelete = (p: Product) => (deleteTarget.value = p)
 
 const doDelete = async () => {
-    if (!deleteTarget.value) return
+    if (!deleteTarget.value) {
+return
+}
+
     deleting.value = true
+
     try {
         await api.delete(`/api/v1/products/${deleteTarget.value.id}`)
         toast.success(`${deleteTarget.value.name} deleted`)
@@ -330,97 +601,354 @@ const doDelete = async () => {
 <template>
     <Head title="Product Management" />
 
-    <div class="space-y-6">
-        <!-- Header -->
-        <div class="flex items-center justify-between gap-3 flex-wrap">
-            <input
-                v-model="search"
-                type="text"
-                placeholder="Search products or categories…"
-                class="rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary flex-1 min-w-48"
-            />
+    <div class="product-theme product-page space-y-6">
+        <header class="product-heading">
+            <div>
+                <p class="product-eyebrow">BYPASS GRILL / MENU COSTING</p>
+                <h1>What each dish <em>really costs.</em></h1>
+                <p>
+                    Price against recipe cost, so the menu earns what you think
+                    it earns.
+                </p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button
+                    class="product-ghost"
+                    :disabled="recosting"
+                    @click="recalculateAll"
+                >
+                    <Calculator class="h-4 w-4" />
+                    {{ recosting ? 'Recosting…' : 'Recost all recipes' }}
+                </button>
+                <button class="product-primary" @click="openAdd">
+                    <Plus class="h-4 w-4" /> Add product
+                </button>
+            </div>
+        </header>
+
+        <!-- The last two are buttons: a count of problems you cannot click is just a scold. -->
+        <div class="product-metrics">
+            <div class="product-metric">
+                <span>Products on the menu</span>
+                <strong>{{ activeCount }}</strong>
+                <span>{{ props.products.length }} in total, including inactive</span>
+            </div>
+            <div class="product-metric">
+                <span>Blended margin</span>
+                <strong>{{ blendedMargin === null ? '—' : blendedMargin.toFixed(1) + '%' }}</strong>
+                <span>Across list prices, weighted by price</span>
+            </div>
             <button
-                @click="openAdd"
-                class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+                type="button"
+                class="product-metric"
+                :class="{ 'is-alert': driftedCount > 0 }"
+                :aria-pressed="attentionOnly === 'drifted'"
+                @click="toggleAttention('drifted')"
             >
-                <Plus class="h-4 w-4" /> Add Product
+                <span>Costs out of date</span>
+                <strong>{{ driftedCount }}</strong>
+                <span>Ingredients repriced since the cost was last worked out</span>
+            </button>
+            <button
+                type="button"
+                class="product-metric"
+                :class="{ 'is-alert': noRecipeCount > 0 }"
+                :aria-pressed="attentionOnly === 'norecipe'"
+                @click="toggleAttention('norecipe')"
+            >
+                <span>No recipe</span>
+                <strong>{{ noRecipeCount }}</strong>
+                <span>COGS has nothing to use but the stored cost</span>
             </button>
         </div>
 
-        <!-- Products Table -->
-        <div class="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div class="product-toolbar">
+            <input
+                v-model="search"
+                type="search"
+                placeholder="Search products, SKUs or categories…"
+                aria-label="Search products"
+            />
+            <div class="product-chips">
+                <button
+                    type="button"
+                    :aria-pressed="categoryFilter === null"
+                    @click="categoryFilter = null"
+                >
+                    All
+                </button>
+                <button
+                    v-for="c in localCategories"
+                    :key="c.id"
+                    type="button"
+                    :aria-pressed="categoryFilter === c.id"
+                    @click="categoryFilter = categoryFilter === c.id ? null : c.id"
+                >
+                    {{ c.name }}
+                </button>
+            </div>
+            <button v-if="filtersActive" class="product-ghost" @click="clearFilters">
+                <X class="h-3.5 w-3.5" /> Clear
+            </button>
+        </div>
+
+        <!-- Narrow screens get cards. A table this wide can only be squeezed or scrolled
+             sideways, and both make you hunt for the number you came for. -->
+        <div class="product-cards">
+            <label class="product-sort">
+                <span>Sort</span>
+                <select v-model="sortChoice">
+                    <option v-for="o in SORT_OPTIONS" :key="o.value" :value="o.value">
+                        {{ o.label }}
+                    </option>
+                </select>
+            </label>
+
+            <article v-for="p in paged" :key="p.id" class="product-card">
+                <header>
+                    <div class="min-w-0">
+                        <h3>{{ p.name }}</h3>
+                        <p class="product-sub">
+                            {{ p.category_name ?? 'Uncategorised' }}
+                            <template v-if="p.sku"> · {{ p.sku }}</template>
+                            <template v-if="!p.is_active"> · Inactive</template>
+                        </p>
+                    </div>
+                    <strong>{{ peso(p.price) }}</strong>
+                </header>
+
+                <dl class="product-card-figures">
+                    <div>
+                        <dt>Stored cost</dt>
+                        <dd>{{ peso(p.cost) }}</dd>
+                    </div>
+                    <div>
+                        <dt>Recipe cost</dt>
+                        <dd v-if="p.has_recipe">
+                            {{ peso(p.recipe_cost) }}
+                            <span v-if="costState(p) === 'drifted'" class="product-sub">
+                                {{ p.cost_drift > 0 ? '+' : '' }}{{ peso(p.cost_drift) }}
+                            </span>
+                        </dd>
+                        <dd v-else class="product-sub">—</dd>
+                    </div>
+                    <div>
+                        <dt>Margin</dt>
+                        <dd :class="marginTone(p)">{{ marginLabel(p) }}</dd>
+                    </div>
+                </dl>
+
+                <p class="product-card-tag">
+                    <span v-if="costState(p) === 'drifted'" class="product-tag tag-drift">Out of date</span>
+                    <span v-else-if="costState(p) === 'norecipe'" class="product-tag tag-norecipe">No recipe</span>
+                    <span v-else class="product-tag tag-ok">
+                        {{ p.recipes.length }} ingredient{{ p.recipes.length === 1 ? '' : 's' }}
+                    </span>
+                </p>
+
+                <div v-if="expandedId === p.id" class="product-card-breakdown">
+                    <p v-if="!p.has_recipe">
+                        No recipe linked. COGS uses the stored cost of {{ peso(p.cost) }} whenever
+                        this sells, and that figure only changes when someone edits it.
+                    </p>
+                    <template v-else>
+                        <div v-for="r in p.recipes" :key="r.ingredient_id">
+                            <span>{{ r.ingredient_name ?? 'Removed ingredient' }}</span>
+                            <span class="product-sub">{{ r.quantity }} {{ r.unit }} × {{ peso(r.cost_per_unit) }}</span>
+                            <strong>{{ peso(r.line_cost) }}</strong>
+                        </div>
+                        <div class="product-card-breakdown-total">
+                            <span>Recipe cost today</span>
+                            <strong>{{ peso(p.recipe_cost) }}</strong>
+                        </div>
+                    </template>
+                </div>
+
+                <footer>
+                    <button
+                        class="product-card-action"
+                        :aria-expanded="expandedId === p.id"
+                        @click="expandedId = expandedId === p.id ? null : p.id"
+                    >
+                        {{ expandedId === p.id ? 'Hide recipe' : 'Recipe' }}
+                    </button>
+                    <button class="product-card-action" @click="openView(p)">
+                        <Eye class="h-4 w-4" /> View
+                    </button>
+                    <button class="product-card-action" @click="openEdit(p)">
+                        <Pencil class="h-4 w-4" /> Edit
+                    </button>
+                    <button class="product-card-action is-danger" @click="confirmDelete(p)">
+                        <Trash2 class="h-4 w-4" /> Delete
+                    </button>
+                </footer>
+            </article>
+
+            <p v-if="filtered.length === 0" class="product-empty">
+                {{ filtersActive ? 'No products match those filters.' : 'No products yet.' }}
+            </p>
+        </div>
+
+        <div class="product-panel product-table-wrap">
             <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead class="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
+                <table>
+                    <thead>
                         <tr>
-                            <th class="px-4 py-3 text-left">Product</th>
-                            <th class="px-4 py-3 text-left">Category</th>
-                            <th class="px-4 py-3 text-right">Price</th>
-                            <th class="px-4 py-3 text-right">Cost</th>
-                            <th class="px-4 py-3 text-right">Margin</th>
-                            <th class="px-4 py-3 text-center">Ingredients</th>
-                            <th class="px-4 py-3 text-center">Status</th>
-                            <th class="px-4 py-3 text-center">Actions</th>
+                            <th :aria-sort="ariaSort('name')">
+                                <button type="button" @click="toggleSort('name')">Product</button>
+                            </th>
+                            <th :aria-sort="ariaSort('category')">
+                                <button type="button" @click="toggleSort('category')">Category</button>
+                            </th>
+                            <th class="product-num" :aria-sort="ariaSort('price')">
+                                <button type="button" @click="toggleSort('price')">Price</button>
+                            </th>
+                            <th class="product-num" :aria-sort="ariaSort('cost')">
+                                <button type="button" @click="toggleSort('cost')">Cost</button>
+                            </th>
+                            <th class="product-num">Recipe cost</th>
+                            <th class="product-num" :aria-sort="ariaSort('margin')">
+                                <button type="button" @click="toggleSort('margin')">Margin</button>
+                            </th>
+                            <th>Cost basis</th>
+                            <th class="product-num">Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y">
-                        <tr
-                            v-for="p in filtered" :key="p.id"
-                            class="hover:bg-muted/20 cursor-pointer"
-                            @click="openView(p)"
-                        >
-                            <td class="px-4 py-3">
-                                <div class="flex items-center gap-3">
-                                    <div class="h-10 w-10 shrink-0 rounded-lg overflow-hidden bg-muted/40 border">
-                                        <img v-if="p.image" :src="p.image" :alt="p.name" class="h-full w-full object-cover" />
-                                        <div v-else class="h-full w-full flex items-center justify-center">
-                                            <ImageIcon class="h-4 w-4 text-muted-foreground opacity-40" />
-                                        </div>
+                    <tbody>
+                        <template v-for="p in paged" :key="p.id">
+                            <tr
+                                class="cursor-pointer"
+                                @click="expandedId = expandedId === p.id ? null : p.id"
+                            >
+                                <td>
+                                    <p class="product-name">{{ p.name }}</p>
+                                    <p v-if="p.sku" class="product-sub">SKU: {{ p.sku }}</p>
+                                    <p v-if="!p.is_active" class="product-sub">Inactive</p>
+                                </td>
+                                <td>{{ p.category_name ?? '—' }}</td>
+                                <td class="product-num">{{ peso(p.price) }}</td>
+                                <td class="product-num">{{ peso(p.cost) }}</td>
+                                <td class="product-num">
+                                    <template v-if="p.has_recipe">
+                                        {{ peso(p.recipe_cost) }}
+                                        <span
+                                            v-if="costState(p) === 'drifted'"
+                                            class="product-sub"
+                                            :title="'Stored cost is ' + peso(p.cost)"
+                                        >
+                                            <br />{{ p.cost_drift > 0 ? '+' : '' }}{{ peso(p.cost_drift) }}
+                                        </span>
+                                    </template>
+                                    <span v-else class="product-sub">—</span>
+                                </td>
+                                <td class="product-num">
+                                    <span :class="marginTone(p)">{{ marginLabel(p) }}</span>
+                                </td>
+                                <td>
+                                    <span v-if="costState(p) === 'drifted'" class="product-tag tag-drift">
+                                        Out of date
+                                    </span>
+                                    <span v-else-if="costState(p) === 'norecipe'" class="product-tag tag-norecipe">
+                                        No recipe
+                                    </span>
+                                    <span v-else class="product-tag tag-ok">
+                                        {{ p.recipes.length }} ingredient{{ p.recipes.length === 1 ? '' : 's' }}
+                                    </span>
+                                </td>
+                                <td class="product-num" @click.stop>
+                                    <div class="flex items-center justify-end gap-1">
+                                        <button
+                                            class="rounded p-1.5 text-[#68665f] hover:bg-[#f1eddf]"
+                                            title="View details"
+                                            @click="openView(p)"
+                                        >
+                                            <Eye class="h-4 w-4" />
+                                        </button>
+                                        <button
+                                            class="rounded p-1.5 text-[#68665f] hover:bg-[#f1eddf]"
+                                            title="Edit"
+                                            @click="openEdit(p)"
+                                        >
+                                            <Pencil class="h-4 w-4" />
+                                        </button>
+                                        <button
+                                            class="rounded p-1.5 text-[#68665f] hover:bg-[#f9e8df] hover:text-[#b52c24]"
+                                            title="Delete"
+                                            @click="confirmDelete(p)"
+                                        >
+                                            <Trash2 class="h-4 w-4" />
+                                        </button>
                                     </div>
-                                    <div>
-                                        <p class="font-semibold">{{ p.name }}</p>
-                                        <p v-if="p.sku" class="text-xs text-muted-foreground">SKU: {{ p.sku }}</p>
+                                </td>
+                            </tr>
+                            <tr v-if="expandedId === p.id" class="product-breakdown">
+                                <td colspan="8">
+                                    <div v-if="!p.has_recipe" class="py-4 text-center text-xs text-[#777268]">
+                                        No recipe linked. COGS uses the stored cost of
+                                        {{ peso(p.cost) }} whenever this sells, and that figure
+                                        only changes when someone edits it.
                                     </div>
-                                </div>
-                            </td>
-                            <td class="px-4 py-3 text-muted-foreground">{{ p.category_name ?? '—' }}</td>
-                            <td class="px-4 py-3 text-right font-bold">₱{{ p.price.toFixed(2) }}</td>
-                            <td class="px-4 py-3 text-right text-muted-foreground">₱{{ p.cost.toFixed(2) }}</td>
-                            <td class="px-4 py-3 text-right">
-                                <span :class="marginClass(p.price, p.cost)">{{ marginPct(p.price, p.cost) }}</span>
-                            </td>
-                            <td class="px-4 py-3 text-center">
-                                <span class="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                                    <UtensilsCrossed class="h-3.5 w-3.5" />
-                                    {{ p.recipes.length }}
-                                </span>
-                            </td>
-                            <td class="px-4 py-3 text-center">
-                                <span :class="['rounded-full px-2.5 py-0.5 text-xs font-semibold', p.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400']">
-                                    {{ p.is_active ? 'Active' : 'Inactive' }}
-                                </span>
-                            </td>
-                            <td class="px-4 py-3 text-center" @click.stop>
-                                <div class="flex items-center justify-center gap-2">
-                                    <button @click="openView(p)" class="rounded-lg p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground" title="View details">
-                                        <Eye class="h-4 w-4" />
-                                    </button>
-                                    <button @click="openEdit(p)" class="rounded-lg p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground" title="Edit">
-                                        <Pencil class="h-4 w-4" />
-                                    </button>
-                                    <button @click="confirmDelete(p)" class="rounded-lg p-1.5 hover:bg-red-50 dark:hover:bg-red-950/20 text-muted-foreground hover:text-red-600" title="Delete">
-                                        <Trash2 class="h-4 w-4" />
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
+                                    <table v-else>
+                                        <thead>
+                                            <tr>
+                                                <th>Ingredient</th>
+                                                <th class="product-num">Quantity</th>
+                                                <th class="product-num">Cost per unit</th>
+                                                <th class="product-num">Line cost</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="r in p.recipes" :key="r.ingredient_id">
+                                                <td>{{ r.ingredient_name ?? 'Removed ingredient' }}</td>
+                                                <td class="product-num">{{ r.quantity }} {{ r.unit }}</td>
+                                                <td class="product-num">{{ peso(r.cost_per_unit) }}</td>
+                                                <td class="product-num">{{ peso(r.line_cost) }}</td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot>
+                                            <tr>
+                                                <td colspan="3">Recipe cost at today's prices</td>
+                                                <td class="product-num">{{ peso(p.recipe_cost) }}</td>
+                                            </tr>
+                                            <tr v-if="costState(p) === 'drifted'">
+                                                <td colspan="3">
+                                                    Stored cost, which is what reports used before the
+                                                    ledger took over
+                                                </td>
+                                                <td class="product-num">{{ peso(p.cost) }}</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </td>
+                            </tr>
+                        </template>
                         <tr v-if="filtered.length === 0">
-                            <td colspan="8" class="px-4 py-10 text-center text-muted-foreground text-sm">No products found.</td>
+                            <td colspan="8" class="py-10 text-center text-sm text-[#777268]">
+                                {{ filtersActive ? 'No products match those filters.' : 'No products yet.' }}
+                            </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
+
+        <nav v-if="filtered.length > 0" class="product-pager" aria-label="Product pages">
+            <p>
+                Showing <strong>{{ rangeStart }}–{{ rangeEnd }}</strong> of
+                <strong>{{ filtered.length }}</strong>
+                <template v-if="filtersActive"> matching</template>
+                product{{ filtered.length === 1 ? '' : 's' }}
+            </p>
+            <div v-if="pageCount > 1" class="product-pager-controls">
+                <button :disabled="page === 1" @click="goToPage(page - 1)">
+                    <ChevronLeft class="h-4 w-4" /> Previous
+                </button>
+                <span>Page {{ page }} of {{ pageCount }}</span>
+                <button :disabled="page === pageCount" @click="goToPage(page + 1)">
+                    Next <ChevronRight class="h-4 w-4" />
+                </button>
+            </div>
+        </nav>
     </div>
 
     <!-- Add / Edit Modal -->
@@ -428,7 +956,7 @@ const doDelete = async () => {
         <Transition name="fade">
             <div
                 v-if="showModal"
-                class="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto"
+                class="product-theme product-modal fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto"
                 @click.self="showModal = false"
             >
                 <div class="w-full max-w-2xl rounded-2xl bg-background shadow-2xl my-8">
@@ -540,37 +1068,12 @@ const doDelete = async () => {
                         </div>
 
                         <!-- Recipe / Inventory Linking -->
-                        <div>
-                            <div class="flex items-center justify-between mb-3">
-                                <div>
-                                    <p class="text-sm font-semibold">Inventory Ingredients</p>
-                                    <p class="text-xs text-muted-foreground">Deducted from stock when ordered.</p>
-                                </div>
-                                <button @click="addRecipeRow"
-                                    class="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-muted">
-                                    <PlusCircle class="h-3.5 w-3.5" /> Add Ingredient
-                                </button>
-                            </div>
-                            <div v-if="recipes.length === 0" class="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                                No ingredients linked — inventory won't be deducted for this product.
-                            </div>
-                            <div v-else class="space-y-2">
-                                <div v-for="(row, i) in recipes" :key="i" class="flex items-center gap-2 rounded-lg border bg-muted/20 p-2">
-                                    <select v-model="row.ingredient_id" @change="onIngredientChange(i)"
-                                        class="flex-1 rounded-md border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary">
-                                        <option :value="0" disabled>Select ingredient…</option>
-                                        <option v-for="ing in ingredientOptions" :key="ing.id" :value="ing.id">{{ ing.name }} ({{ ing.unit }})</option>
-                                    </select>
-                                    <input v-model.number="row.quantity" type="number" min="0.001" step="0.001" placeholder="Qty"
-                                        class="w-24 rounded-md border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
-                                    <input v-model="row.unit" type="text" placeholder="unit"
-                                        class="w-16 rounded-md border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary" />
-                                    <button @click="removeRecipeRow(i)" class="text-muted-foreground hover:text-red-500">
-                                        <MinusCircle class="h-4 w-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                        <RecipeBuilder
+                            v-model="recipes"
+                            :ingredients="props.ingredients"
+                            hint="Deducted from stock when ordered. Food is prepped stock; ingredients are raw."
+                            empty-text="No ingredients linked — inventory won't be deducted for this product."
+                        />
 
                         <!-- Combo Meal Builder -->
                         <div class="rounded-xl border border-dashed p-4">
@@ -636,7 +1139,7 @@ const doDelete = async () => {
     <!-- View Product Details Modal -->
     <Teleport to="body">
         <Transition name="fade">
-            <div v-if="viewProduct" class="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto" @click.self="viewProduct = null">
+            <div v-if="viewProduct" class="product-theme product-modal fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto" @click.self="viewProduct = null">
                 <div class="w-full max-w-lg rounded-2xl bg-background shadow-2xl my-8">
                     <!-- Header -->
                     <div class="p-5 border-b flex items-center justify-between">
@@ -723,7 +1226,7 @@ const doDelete = async () => {
     <!-- Delete Confirmation -->
     <Teleport to="body">
         <Transition name="fade">
-            <div v-if="deleteTarget" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="deleteTarget = null">
+            <div v-if="deleteTarget" class="product-theme product-modal fixed inset-0 z-50 flex items-center justify-center p-4" @click.self="deleteTarget = null">
                 <div class="w-full max-w-sm rounded-2xl bg-background shadow-2xl p-6 space-y-4">
                     <h3 class="text-lg font-bold">Delete Product?</h3>
                     <p class="text-sm text-muted-foreground">
@@ -748,3 +1251,4 @@ const doDelete = async () => {
 .slide-enter-active, .slide-leave-active { transition: all 0.15s ease; }
 .slide-enter-from, .slide-leave-to { opacity: 0; transform: translateY(-6px); }
 </style>
+<style src="../../css/product-theme.css"></style>
