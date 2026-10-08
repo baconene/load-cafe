@@ -96,7 +96,7 @@ const updateViewport = () => {
 }
 const searchInput = ref<HTMLInputElement | null>(null)
 const cartItemCount = computed(() => cartStore.items.reduce((sum, item) => sum + item.quantity, 0))
-const orderHint = computed(() => !cartStore.items.length ? 'Choose products to start an order.' : !cartStore.orderType ? 'Select an order type to continue.' : !cartStore.customerName.trim() ? 'Add a customer name to continue.' : 'Ready to review payment.')
+const orderHint = computed(() => !cartStore.items.length ? 'Choose products to start an order.' : !cartStore.orderType ? 'Select an order type to continue.' : 'Ready to review payment.')
 const clearCart = () => {
     if (cartStore.items.length && !confirm('Clear this cart? Any already-saved order stays in Pending Payments.')) return
     cartStore.clear()
@@ -274,11 +274,7 @@ const submitOrder = async () => {
         toast.error('Please select an order type.')
         return
     }
-    if (!cartStore.customerName.trim()) {
-        orderTypeOpen.value = true
-        toast.error('Customer name is required.')
-        return
-    }
+
     submitting.value = true
     try {
         const itemsPayload = cartStore.items.map((item) => ({
