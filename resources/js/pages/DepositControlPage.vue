@@ -404,11 +404,11 @@ onUnmounted(() => clearInterval(clock));
 
 <template>
     <Head :title="historyView ? 'Snapshot History' : 'Deposit Control'" />
-    <div class="grill-page">
+    <div class="café-page">
         <header class="page-heading">
             <div>
                 <p class="eyebrow">
-                    <Wallet :size="14" aria-hidden="true" /> BYPASS GRILL /
+                    <Wallet :size="14" aria-hidden="true" /> LOAD CAFE /
                     DEPOSIT CONTROL
                 </p>
                 <h1 v-if="historyView">Previous <em>snapshots.</em></h1>
@@ -1398,14 +1398,14 @@ onUnmounted(() => clearInterval(clock));
         </section>
 
         <footer class="page-footer">
-            <span>BYPASS GRILL · MAKE EVERY PESO COUNT.</span
+            <span>LOAD CAFE · MAKE EVERY PESO COUNT.</span
             ><span>Figures update when you open or refresh this page.</span>
         </footer>
     </div>
 </template>
 
 <style scoped>
-.grill-page {
+.café-page {
     background: #f6f2e9;
     color: #24231e;
     min-height: 100%;
@@ -2347,11 +2347,11 @@ textarea:focus {
     letter-spacing: 1px;
     font-weight: 700;
 }
-.grill-page :focus-visible {
+.café-page :focus-visible {
     outline: 2px solid #ad3b19;
     outline-offset: 3px;
 }
-.grill-page button {
+.café-page button {
     cursor: pointer;
 }
 .spinning {
@@ -2386,7 +2386,7 @@ textarea:focus {
     }
 }
 @media (max-width: 640px) {
-    .grill-page {
+    .café-page {
         padding: 24px 16px;
         gap: 18px;
     }

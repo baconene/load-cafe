@@ -181,7 +181,7 @@ const reprintReceipt = async () => {
                     <ArrowLeft :size="15" />
                 </button>
                 <div>
-                    <p class="eyebrow"><Flame :size="13" aria-hidden="true" /> BYPASS GRILL / ORDER DETAIL</p>
+                    <p class="eyebrow"><Flame :size="13" aria-hidden="true" /> LOAD CAFE / ORDER DETAIL</p>
                     <h1>Order <em>#{{ order.id }}</em></h1>
                     <p class="heading-sub">
                         {{ order.order_type_label }}
@@ -527,7 +527,7 @@ const reprintReceipt = async () => {
         </div>
 
         <footer class="order-footer">
-            <span>BYPASS GRILL · ORDER #{{ order.id }}</span>
+            <span>LOAD CAFE · ORDER #{{ order.id }}</span>
             <span>{{ order.order_type_label }} · {{ statusLabel[order.status] ?? order.status }}</span>
         </footer>
 
