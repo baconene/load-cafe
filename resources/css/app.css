@@ -170,3 +170,23 @@
         @apply bg-background text-foreground;
     }
 }
+
+/* Load Cafe | blackwood coffeehouse identity */
+:root, .dark {
+ --background: #17110e; --foreground: #f5e9d8;
+ --card: #241a15; --card-foreground: #f5e9d8;
+ --popover: #241a15; --popover-foreground: #f5e9d8;
+ --primary: #c99258; --primary-foreground: #17110e;
+ --secondary: #35251c; --secondary-foreground: #f5e9d8;
+ --muted: #30241d; --muted-foreground: #c5ae98;
+ --accent: #493021; --accent-foreground: #fff3e3;
+ --border: #4a3629; --input: #493529; --ring: #c99258;
+ --sidebar-background: #1c1511; --sidebar-foreground: #f5e9d8;
+ --sidebar-primary: #c99258; --sidebar-primary-foreground: #17110e;
+ --sidebar-accent: #35251c; --sidebar-accent-foreground: #fff3e3;
+ --sidebar-border: #493529; --sidebar-ring: #c99258;
+ --chart-1: #c99258; --chart-2: #8c6245; --chart-3: #e3bc83;
+ --chart-4: #7b8560; --chart-5: #b77c63;
+}
+html { color-scheme: dark; }
+body { background-color: #17110e; background-image: radial-gradient(ellipse at top right, rgba(131,80,39,.11), transparent 56%); }
